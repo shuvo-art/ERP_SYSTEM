@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init
+spec:
+  template:
+    spec:
+      containers:
+      - name: mssql-tools
+        image: mcr.microsoft.com/mssql-tools
+        command: ["/bin/bash", "-c", "/opt/mssql-tools/bin/sqlcmd -S order-db -U sa -P $MSSQL_SA_PASSWORD -C -i /sql/init.sql"]
+        env:
+        - name: MSSQL_SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mssql-secret
+              key: MSSQL_SA_PASSWORD
+        volumeMounts:
+        - name: sql-script
+          mountPath: /sql
+      volumes:
+      - name: sql-script
+        configMap:
+          name: db-init-script
+      restartPolicy: OnFailure

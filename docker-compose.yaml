@@ -27,7 +27,8 @@ services:
     command: -c "/opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/init.sql"
 
   api:
-    build: .
+    image: ${DOCKER_IMAGE_NAME:-semcorp-api}:latest
+    # build: . # Commented out for production deployment using pre-built image
     container_name: order_api
     ports:
       - "8080:8080"

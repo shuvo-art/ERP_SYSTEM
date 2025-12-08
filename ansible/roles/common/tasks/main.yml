@@ -1,0 +1,21 @@
+---
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  become: yes
+
+- name: Upgrade all packages
+  apt:
+    upgrade: dist
+  become: yes
+
+- name: Install basic tools
+  apt:
+    name:
+      - curl
+      - git
+      - htop
+      - software-properties-common
+    state: present
+  become: yes

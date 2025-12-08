@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-api
+  labels:
+    app: order-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-api
+  template:
+    metadata:
+      labels:
+        app: order-api
+    spec:
+      initContainers:
+      - name: check-db-ready
+        image: mcr.microsoft.com/mssql-tools
+        command: ['sh', '-c', 'until /opt/mssql-tools/bin/sqlcmd -S order-db -U sa -P $MSSQL_SA_PASSWORD -Q "SELECT 1" -C; do echo waiting for db; sleep 2; done;']
+        env:
+        - name: MSSQL_SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mssql-secret
+              key: MSSQL_SA_PASSWORD
+      containers:
+      - name: api
+        image: semcorp-api:latest
+        imagePullPolicy: IfNotPresent 
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ConnectionStrings__DefaultConnection
+          value: "Server=order-db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;"
+        - name: ASPNETCORE_URLS
+          value: "http://+:8080"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-api
+spec:
+  selector:
+    app: order-api
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP

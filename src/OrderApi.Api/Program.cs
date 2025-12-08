@@ -1,6 +1,7 @@
 using OrderApi.Core.Interfaces;
 using OrderApi.Infrastructure.Repositories;
 using OrderApi.Infrastructure.Services;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,6 +39,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
+app.UseHttpMetrics(); // Prometheus metrics
+
 app.MapControllers();
+app.MapMetrics(); // Expose /metrics endpoint
 
 app.Run();

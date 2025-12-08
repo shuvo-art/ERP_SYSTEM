@@ -25,3 +25,19 @@ docker-compose.override.yml
 
 # Logs
 *.log
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+terraform.rc
+terraform.tfvars
+
+# Ansible
+*.retry
+
+# Kubernetes Secrets (Prevent committing credentials)
+k8s/01-secret.yaml
+# Ignore the ClusterIssuer as it may contain email
+k8s/06-cluster-issuer.yaml

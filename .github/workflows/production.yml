@@ -1,0 +1,83 @@
+name: Production Build & Deploy
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_HUB_USERNAME }}/order-api
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.DOCKER_IMAGE_NAME }}:latest,${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.0
+        env:
+          DOCKER_IMAGE_NAME: ${{ env.DOCKER_IMAGE_NAME }}
+          TAG: ${{ github.sha }}
+        with:
+          host: ${{ secrets.PROD_VM_HOST }}
+          username: ${{ secrets.PROD_VM_USERNAME }}
+          key: ${{ secrets.PROD_VM_SSH_KEY }}
+          port: ${{ secrets.PROD_VM_SSH_PORT }}
+          envs: DOCKER_IMAGE_NAME,TAG
+          script: |
+            set -e
+            APP_DIR="/root/order-api"
+            
+            # 1. Update Code/Config
+            mkdir -p $APP_DIR
+            cd $APP_DIR
+            
+            # Use curl to get just the docker-compose file if specific file needed, 
+            # OR git pull if maintaining repo on server. 
+            # Here we assume repo is there for the compose file.
+            if [ -d ".git" ]; then
+              git pull origin master
+            else
+              git clone https://github.com/${{ github.repository }}.git .
+            fi
+
+            # 2. Update Environment / Compose override to use specific tag
+            # We export the variable so docker compose picks it up if referenced,
+            # OR we can purely rely on 'latest' in the docker-compose or override.
+            # A robust way is to use the environment variable in docker-compose.
+            
+            # 3. Pull latest images
+            echo "⬇️ Pulling latest images..."
+            docker compose pull
+
+            # 4. Restart Services
+            echo "🚀 Restarting services..."
+            docker compose down
+            docker compose up -d
+
+            # 5. Cleanup
+            docker image prune -f
