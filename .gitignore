@@ -1,0 +1,27 @@
+# Build and Release
+bin/
+obj/
+/out/
+
+# Dependencies
+/.gemini/
+.gemini/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.user
+*.suo
+.vs/
+*.sln.docstates
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log

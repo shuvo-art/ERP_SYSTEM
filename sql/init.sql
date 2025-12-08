@@ -1,0 +1,82 @@
+-- Create Tables
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Customers')
+BEGIN
+    CREATE TABLE Customers (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        Name NVARCHAR(100) NOT NULL,
+        Email NVARCHAR(100) NOT NULL UNIQUE
+    );
+    -- Seed a customer for testing
+    INSERT INTO Customers (Name, Email) VALUES ('Test User', 'test@example.com');
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Orders')
+BEGIN
+    CREATE TABLE Orders (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        CustomerId INT NOT NULL FOREIGN KEY REFERENCES Customers(Id),
+        OrderDate DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        TotalAmount DECIMAL(18,2) NOT NULL,
+        RequestId UNIQUEIDENTIFIER NOT NULL UNIQUE, -- Idempotency Key
+        Status NVARCHAR(20) NOT NULL DEFAULT 'Received'
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'OrderItems')
+BEGIN
+    CREATE TABLE OrderItems (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        OrderId INT NOT NULL FOREIGN KEY REFERENCES Orders(Id),
+        ProductId NVARCHAR(50) NOT NULL,
+        Quantity INT NOT NULL,
+        UnitPrice DECIMAL(18,2) NOT NULL
+    );
+END
+GO
+
+-- Create Stored Procedure
+CREATE OR ALTER PROCEDURE sp_CreateOrder
+    @CustomerId INT,
+    @TotalAmount DECIMAL(18,2),
+    @RequestId UNIQUEIDENTIFIER,
+    @OrderItemsJson NVARCHAR(MAX),
+    @NewOrderId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    BEGIN TRAN;
+
+    -- 1. Idempotency Check: If RequestId exists, return the existing OrderId
+    SELECT @NewOrderId = Id FROM Orders WHERE RequestId = @RequestId;
+    
+    IF @NewOrderId IS NOT NULL
+    BEGIN
+        -- Already processed
+        COMMIT TRAN;
+        RETURN; 
+    END
+
+    -- 2. Insert Order Header
+    INSERT INTO Orders (CustomerId, TotalAmount, RequestId, Status)
+    VALUES (@CustomerId, @TotalAmount, @RequestId, 'Received');
+
+    SET @NewOrderId = SCOPE_IDENTITY();
+
+    -- 3. Insert Order Items (using JSON for performance/simplicity over TVP in this context)
+    -- Requires SQL Server 2016+
+    INSERT INTO OrderItems (OrderId, ProductId, Quantity, UnitPrice)
+    SELECT @NewOrderId, ProductId, Quantity, UnitPrice
+    FROM OPENJSON(@OrderItemsJson)
+    WITH (
+        ProductId NVARCHAR(50),
+        Quantity INT,
+        UnitPrice DECIMAL(18,2)
+    );
+
+    COMMIT TRAN;
+END
+GO
