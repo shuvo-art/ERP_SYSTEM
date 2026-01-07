@@ -3,7 +3,7 @@ version: '3.8'
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: order_db
+    container_name: erp_db
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=YourStrong@Passw0rd
@@ -17,25 +17,66 @@ services:
 
   db-init:
     image: mcr.microsoft.com/mssql-tools
-    container_name: order_db_init
+    container_name: erp_db_init
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./sql:/sql
     entrypoint: /bin/bash
-    command: -c "/opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/init.sql"
+    command: -c "/opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/auth/init-auth.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/products/init-products.sql"
 
-  api:
-    image: ${DOCKER_IMAGE_NAME:-semcorp-api}:latest
-    # build: . # Commented out for production deployment using pre-built image
-    container_name: order_api
+  auth-api:
+    build:
+      context: .
+      dockerfile: src/Auth.Api/Dockerfile
+    image: erp-auth-api:latest
+    container_name: auth_api
     ports:
       - "8080:8080"
     environment:
       - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
+      - JwtSettings__Issuer=AuthApi
+      - JwtSettings__Audience=ErpClients
+      - JwtSettings__AccessTokenExpirationMinutes=15
+      - JwtSettings__RefreshTokenExpirationDays=7
+      - EmailSettings__SmtpHost=smtp.gmail.com
+      - EmailSettings__SmtpPort=587
+      - EmailSettings__SmtpUser=shuvo83qn@gmail.com
+      - EmailSettings__SmtpPass=jslq wvnp phqg gjly
+      - EmailSettings__FromEmail=noreply@authapi.com
+      - EmailSettings__FromName=Auth API
+      - EmailSettings__EnableSsl=true
     depends_on:
       db:
         condition: service_healthy
       db-init:
         condition: service_completed_successfully
+
+  product-api:
+    build:
+      context: .
+      dockerfile: src/ProductApi.Api/Dockerfile
+    image: erp-product-api:latest
+    container_name: product_api_service
+    ports:
+      - "8083:8080"
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
+      - JwtSettings__Issuer=AuthApi
+      - JwtSettings__Audience=ErpClients
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./uploads:/app/wwwroot/uploads
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8081:8080

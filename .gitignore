@@ -41,3 +41,8 @@ terraform.tfvars
 k8s/01-secret.yaml
 # Ignore the ClusterIssuer as it may contain email
 k8s/06-cluster-issuer.yaml
+
+# Local uploads
+uploads/
+*.sln.docstates
+OrderApi.sln
