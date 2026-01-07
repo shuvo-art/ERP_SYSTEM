@@ -12,16 +12,16 @@ namespace ProductApi.Api.Controllers;
 public class ProductsController : ControllerBase
 {
     private readonly IProductRepository _productRepository;
-    private readonly IFileService _fileService;
+    private readonly ICloudinaryService _cloudinaryService;
     private readonly ILogger<ProductsController> _logger;
 
     public ProductsController(
         IProductRepository productRepository, 
-        IFileService fileService,
+        ICloudinaryService cloudinaryService,
         ILogger<ProductsController> logger)
     {
         _productRepository = productRepository;
-        _fileService = fileService;
+        _cloudinaryService = cloudinaryService;
         _logger = logger;
     }
 
@@ -107,7 +107,7 @@ public class ProductsController : ControllerBase
             // Handle Image Upload
             if (request.ImageFile != null)
             {
-                product.Image = await _fileService.SaveFileAsync(request.ImageFile, "products/main");
+                product.Image = await _cloudinaryService.UploadImageAsync(request.ImageFile, "products/main");
             }
 
             // Handle Related Images
@@ -115,7 +115,7 @@ public class ProductsController : ControllerBase
             {
                 foreach (var file in request.RelatedImageFiles)
                 {
-                    product.RelatedImages.Add(await _fileService.SaveFileAsync(file, "products/related"));
+                    product.RelatedImages.Add(await _cloudinaryService.UploadImageAsync(file, "products/related"));
                 }
             }
 
@@ -186,17 +186,17 @@ public class ProductsController : ControllerBase
             // Handle new file uploads (only if provided and NOT empty)
             if (request.ImageFile != null && request.ImageFile.Length > 0)
             {
-                await _fileService.DeleteFileAsync(existingProduct.Image ?? "", "products/main");
-                product.Image = await _fileService.SaveFileAsync(request.ImageFile, "products/main");
+                await _cloudinaryService.DeleteFileAsync(existingProduct.Image ?? "");
+                product.Image = await _cloudinaryService.UploadImageAsync(request.ImageFile, "products/main");
             }
 
             if (request.RelatedImageFiles != null && request.RelatedImageFiles.Any(f => f.Length > 0))
             {
-                foreach (var img in existingProduct.RelatedImages) await _fileService.DeleteFileAsync(img, "products/related");
+                foreach (var img in existingProduct.RelatedImages) await _cloudinaryService.DeleteFileAsync(img);
                 product.RelatedImages = new List<string>();
                 foreach (var file in request.RelatedImageFiles.Where(f => f.Length > 0))
                 {
-                    product.RelatedImages.Add(await _fileService.SaveFileAsync(file, "products/related"));
+                    product.RelatedImages.Add(await _cloudinaryService.UploadImageAsync(file, "products/related"));
                 }
             }
 
@@ -233,14 +233,14 @@ public class ProductsController : ControllerBase
             var product = await _productRepository.GetProductByIdAsync(id);
             if (product == null) return NotFound();
 
-            // Cleanup files
-            await _fileService.DeleteFileAsync(product.Image ?? "", "products/main");
-            foreach (var img in product.RelatedImages) await _fileService.DeleteFileAsync(img, "products/related");
+            // Cleanup files from Cloudinary
+            if (!string.IsNullOrEmpty(product.Image)) await _cloudinaryService.DeleteFileAsync(product.Image);
+            foreach (var img in product.RelatedImages) await _cloudinaryService.DeleteFileAsync(img);
             foreach (var docType in product.Documents)
             {
                 foreach (var file in docType.Value)
                 {
-                    await _fileService.DeleteFileAsync(file, $"documents/{docType.Key}");
+                    await _cloudinaryService.DeleteFileAsync(file);
                 }
             }
 
@@ -261,28 +261,28 @@ public class ProductsController : ControllerBase
         {
             if (!product.Documents.ContainsKey("technical_data_sheet")) product.Documents["technical_data_sheet"] = new();
             foreach (var file in request.TechnicalDataSheetFiles.Where(f => f.Length > 0))
-                product.Documents["technical_data_sheet"].Add(await _fileService.SaveFileAsync(file, "documents/technical_data_sheet"));
+                product.Documents["technical_data_sheet"].Add(await _cloudinaryService.UploadFileAsync(file, "documents/technical_data_sheet"));
         }
 
         if (request.SafetyDataSheetFiles != null)
         {
             if (!product.Documents.ContainsKey("safety_data_sheet")) product.Documents["safety_data_sheet"] = new();
             foreach (var file in request.SafetyDataSheetFiles.Where(f => f.Length > 0))
-                product.Documents["safety_data_sheet"].Add(await _fileService.SaveFileAsync(file, "documents/safety_data_sheet"));
+                product.Documents["safety_data_sheet"].Add(await _cloudinaryService.UploadFileAsync(file, "documents/safety_data_sheet"));
         }
 
         if (request.SalesBrochureFiles != null)
         {
             if (!product.Documents.ContainsKey("sales_brochure")) product.Documents["sales_brochure"] = new();
             foreach (var file in request.SalesBrochureFiles.Where(f => f.Length > 0))
-                product.Documents["sales_brochure"].Add(await _fileService.SaveFileAsync(file, "documents/sales_brochure"));
+                product.Documents["sales_brochure"].Add(await _cloudinaryService.UploadFileAsync(file, "documents/sales_brochure"));
         }
 
         if (request.CompanyProfileFiles != null)
         {
             if (!product.Documents.ContainsKey("company_profile")) product.Documents["company_profile"] = new();
             foreach (var file in request.CompanyProfileFiles.Where(f => f.Length > 0))
-                product.Documents["company_profile"].Add(await _fileService.SaveFileAsync(file, "documents/company_profile"));
+                product.Documents["company_profile"].Add(await _cloudinaryService.UploadFileAsync(file, "documents/company_profile"));
         }
     }
 }
