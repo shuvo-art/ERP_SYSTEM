@@ -24,7 +24,7 @@ services:
     volumes:
       - ./sql:/sql
     entrypoint: /bin/bash
-    command: -c "/opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/auth/init-auth.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/products/init-products.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/target-market/init-target-market.sql"
+    command: -c "/opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/auth/init-auth.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/products/init-products.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/target-market/init-target-market.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/partners/init-partners.sql"
 
   auth-api:
     build:
@@ -90,6 +90,28 @@ services:
     container_name: target_market_api
     ports:
       - "8084:8080"
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
+      - JwtSettings__Issuer=AuthApi
+      - JwtSettings__Audience=ErpClients
+      - Cloudinary__CloudName=dd2tk1vnp
+      - Cloudinary__ApiKey=236387315854276
+      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+
+  partner-api:
+    build:
+      context: .
+      dockerfile: src/PartnerApi.Api/Dockerfile
+    image: erp-partner-api:latest
+    container_name: partner_api
+    ports:
+      - "8085:8080"
     environment:
       - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
       - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
