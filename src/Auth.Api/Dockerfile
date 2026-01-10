@@ -2,18 +2,14 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /app
 
-# Copy all csproj files and restore as distinct layers
+# Copy only necessary project files for restore
 COPY src/Auth.Core/*.csproj ./src/Auth.Core/
 COPY src/Auth.Infrastructure/*.csproj ./src/Auth.Infrastructure/
 COPY src/Auth.Api/*.csproj ./src/Auth.Api/
-COPY src/ProductApi.Core/*.csproj ./src/ProductApi.Core/
-COPY src/ProductApi.Infrastructure/*.csproj ./src/ProductApi.Infrastructure/
-COPY src/ProductApi.Api/*.csproj ./src/ProductApi.Api/
 COPY src/Shared.Kernel/*.csproj ./src/Shared.Kernel/
-COPY *.sln ./
 
-# Restore dependencies
-RUN dotnet restore
+# Restore dependencies for Auth.Api
+RUN dotnet restore src/Auth.Api/Auth.Api.csproj
 
 # Copy everything else and build
 COPY . .
