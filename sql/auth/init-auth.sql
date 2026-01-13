@@ -38,7 +38,7 @@ BEGIN
     
     -- Seed admin user (password: Admin123!)
     INSERT INTO Users (Email, PasswordHash, FirstName, LastName, Role, IsEmailVerified, Status)
-    VALUES ('admin@erpsystem.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYIq.Zu3u6u', 'Admin', 'User', 'Admin', 1, 1);
+    VALUES ('admin@erpsystem.com', '$2a$12$w9lCBFIUQo5hkaH3cL5qqu7rUksSzYwmQMZftFSUuCuT44SaPXbLe', 'Admin', 'User', 'Admin', 1, 1);
 END
 GO
 
