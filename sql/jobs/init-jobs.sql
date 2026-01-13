@@ -11,7 +11,7 @@ GO
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[JobPostings]') AND type in (N'U'))
 BEGIN
     CREATE TABLE [dbo].[JobPostings] (
-        [Id] Guid PRIMARY KEY DEFAULT NEWID(),
+        [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
         [Title] NVARCHAR(255) NOT NULL,
         [Slug] NVARCHAR(255) NOT NULL UNIQUE,
         [Department] NVARCHAR(100) NOT NULL,
@@ -37,8 +37,8 @@ GO
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[JobApplications]') AND type in (N'U'))
 BEGIN
     CREATE TABLE [dbo].[JobApplications] (
-        [Id] Guid PRIMARY KEY DEFAULT NEWID(),
-        [JobId] Guid NOT NULL,
+        [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+        [JobId] UNIQUEIDENTIFIER NOT NULL,
         [JobTitle] NVARCHAR(255) NOT NULL,
         [FirstName] NVARCHAR(100) NOT NULL,
         [LastName] NVARCHAR(100) NOT NULL,
