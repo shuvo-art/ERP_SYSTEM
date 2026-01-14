@@ -1,8 +1,17 @@
 ---
-- name: Provision Server
+- name: Provision All Servers
+  hosts: all
+  become: yes
+  vars_files:
+    - group_vars/all.yml
+
+  roles:
+    - common
+
+- name: Provision Webservers
   hosts: webservers
   become: yes
   
   roles:
-    - common
     - docker
+    # - eks-config # Uncomment if this server needs to talk to EKS

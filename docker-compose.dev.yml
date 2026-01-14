@@ -1,0 +1,183 @@
+version: '3.8'
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: erp_db_dev
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=YourStrong@Passw0rd
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -Q 'SELECT 1' || exit 1" ]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+
+  db-init:
+    image: mcr.microsoft.com/mssql-tools
+    container_name: erp_db_init_dev
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./sql:/sql
+    entrypoint: /bin/bash
+    command: -c "/opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/auth/init-auth.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/products/init-products.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/target-market/init-target-market.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/partners/init-partners.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/reference-projects/init-reference-projects.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/jobs/init-jobs.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/contact/init-contact.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/about-us/init-about-us.sql"
+
+  auth-api:
+    build:
+      context: .
+      dockerfile: src/Auth.Api/Dockerfile
+    container_name: auth_api_dev
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
+      - JwtSettings__Issuer=AuthApi
+      - JwtSettings__Audience=ErpClients
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+
+  product-api:
+    build:
+      context: .
+      dockerfile: src/ProductApi.Api/Dockerfile
+    container_name: product_api_dev
+    ports:
+      - "8083:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - Cloudinary__CloudName=dd2tk1vnp
+      - Cloudinary__ApiKey=236387315854276
+      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+
+  target-market-api:
+    build:
+      context: .
+      dockerfile: src/TargetMarketApi.Api/Dockerfile
+    container_name: target_market_api_dev
+    ports:
+      - "8084:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - Cloudinary__CloudName=dd2tk1vnp
+      - Cloudinary__ApiKey=236387315854276
+      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+
+  partner-api:
+    build:
+      context: .
+      dockerfile: src/PartnerApi.Api/Dockerfile
+    container_name: partner_api_dev
+    ports:
+      - "8085:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - Cloudinary__CloudName=dd2tk1vnp
+      - Cloudinary__ApiKey=236387315854276
+      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+
+  reference-project-api:
+    build:
+      context: .
+      dockerfile: src/ReferenceProjectApi.Api/Dockerfile
+    container_name: reference_project_api_dev
+    ports:
+      - "8086:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - Cloudinary__CloudName=dd2tk1vnp
+      - Cloudinary__ApiKey=236387315854276
+      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+
+  job-api:
+    build:
+      context: .
+      dockerfile: src/JobApi.Api/Dockerfile
+    container_name: job_api_dev
+    ports:
+      - "8087:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - Cloudinary__CloudName=dd2tk1vnp
+      - Cloudinary__ApiKey=236387315854276
+      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+
+  contact-api:
+    build:
+      context: .
+      dockerfile: src/ContactApi.Api/Dockerfile
+    container_name: contact_api_dev
+    ports:
+      - "8088:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+
+  about-us-api:
+    build:
+      context: .
+      dockerfile: src/AboutUsApi.Api/Dockerfile
+    container_name: about_us_api_dev
+    ports:
+      - "8089:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
+      - Cloudinary__CloudName=dd2tk1vnp
+      - Cloudinary__ApiKey=236387315854276
+      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+    depends_on:
+      db:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+
+  adminer:
+    image: adminer
+    container_name: adminer_dev
+    restart: always
+    ports:
+      - "8081:8080"

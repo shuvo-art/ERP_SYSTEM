@@ -1,0 +1,28 @@
+apiVersion: v2
+name: erp-system
+description: A Helm umbrella chart for the ERP System
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: auth-api
+    version: 1.0.0
+    repository: "file://./charts/auth-api"
+  - name: product-api
+    version: 1.0.0
+    repository: "file://./charts/product-api"
+  - name: job-api
+    version: 1.0.0
+    repository: "file://./charts/job-api"
+  - name: about-us-api
+    version: 1.0.0
+    repository: "file://./charts/about-us-api"
+  - name: prometheus
+    version: 25.x.x
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: prometheus.enabled
+  - name: grafana
+    version: 7.x.x
+    repository: "https://grafana.github.io/helm-charts"
+    condition: grafana.enabled

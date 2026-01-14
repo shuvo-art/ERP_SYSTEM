@@ -1,0 +1,11 @@
+---
+# tasks file for eks-config
+- name: Install kubectl
+  get_url:
+    url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl"
+    dest: /usr/local/bin/kubectl
+    mode: '0755'
+
+- name: Configure kubeconfig for EKS
+  command: aws eks update-kubeconfig --name {{ eks_cluster_name }} --region {{ aws_region | default('us-east-1') }}
+  ignore_errors: yes # Might fail if AWS creds aren't present

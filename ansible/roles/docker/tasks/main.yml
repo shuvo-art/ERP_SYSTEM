@@ -1,41 +1,21 @@
 ---
-- name: Install official Docker GPG key
-  apt_key:
-    url: https://download.docker.com/linux/ubuntu/gpg
+# tasks file for docker
+- name: Install Docker packages
+  package:
+    name: "{{ item }}"
     state: present
-  become: yes
-
-- name: Add Docker repository
-  apt_repository:
-    repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
-    state: present
-  become: yes
-
-- name: Update apt cache after adding repo
-  apt:
-    update_cache: yes
-  become: yes
-
-- name: Install Docker and Compose plugin
-  apt:
-    name:
-      - docker-ce
-      - docker-ce-cli
-      - containerd.io
-      - docker-compose-plugin
-    state: present
-  become: yes
+  loop: "{{ docker_packages }}"
+  notify: restart docker
 
 - name: Ensure Docker service is running
   service:
     name: docker
     state: started
     enabled: yes
-  become: yes
 
-- name: Add user to docker group
+- name: Add users to docker group
   user:
-    name: "{{ ansible_user }}"
+    name: "{{ item }}"
     groups: docker
     append: yes
-  become: yes
+  loop: "{{ docker_users }}"

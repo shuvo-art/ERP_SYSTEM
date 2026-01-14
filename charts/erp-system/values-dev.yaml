@@ -1,0 +1,17 @@
+global:
+  domain: dev.erp-system.local
+  db:
+    host: dev-mssql
+    sa_password: "DevStrong@Passw0rd"
+
+auth-api:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+product-api:
+  replicaCount: 1
+
+# Other dev-specific overrides

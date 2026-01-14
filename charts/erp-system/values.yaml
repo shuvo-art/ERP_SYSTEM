@@ -1,0 +1,46 @@
+global:
+  domain: erp-system.local
+  imagePullPolicy: IfNotPresent
+  storageClass: gp2
+  db:
+    host: erp-mssql
+    port: 1433
+    sa_password: "YourStrong@Passw0rd"
+
+auth-api:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: erp-auth-api
+    tag: latest
+
+product-api:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: erp-product-api
+    tag: latest
+
+job-api:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: erp-job-api
+    tag: latest
+
+about-us-api:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: erp-about-us-api
+    tag: latest
+
+mssql:
+  enabled: true
+
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true

@@ -1,21 +1,13 @@
 ---
+# tasks file for common
 - name: Update apt cache
   apt:
     update_cache: yes
     cache_valid_time: 3600
-  become: yes
+  when: ansible_os_family == "Debian"
 
-- name: Upgrade all packages
-  apt:
-    upgrade: dist
-  become: yes
-
-- name: Install basic tools
-  apt:
-    name:
-      - curl
-      - git
-      - htop
-      - software-properties-common
+- name: Install common packages
+  package:
+    name: "{{ item }}"
     state: present
-  become: yes
+  loop: "{{ common_packages }}"

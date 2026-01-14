@@ -1,0 +1,30 @@
+global:
+  domain: erp-system.com
+  db:
+    host: prod-mssql-cluster
+    sa_password: "ProdStrong@Passw0rd"
+
+auth-api:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1024Mi
+
+product-api:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+# Monitoring enabled for Prod
+monitoring:
+  enabled: true

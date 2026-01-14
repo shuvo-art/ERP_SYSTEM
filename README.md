@@ -24,17 +24,14 @@ The system is composed of independent services following microservices principle
 ## 🛠️ Project Structure
 
 ```text
-├── src/
-│   ├── Auth.Api              # Identity Entry Point
-│   ├── Auth.Core             # Auth Business Logic & Entities
-│   ├── Auth.Infrastructure   # DB Repositories & Services Implementation
-│   ├── ProductApi.Api        # Product Catalog Entry Point
-│   ├── ProductApi.Core       # Product Business Logic
-│   ├── ProductApi.Infrastructure # Product Data Access
-│   └── Shared.Kernel         # Cross-cutting concerns
-├── sql/
-│   ├── auth/                 # Auth Database Initialization
-│   └── products/             # Products Database Initialization
+├── src/                      # Microservices Source Code
+├── sql/                      # Database Initialization Scripts
+├── terraform/                # Infrastructure as Code (AWS EKS)
+│   ├── modules/              # Reusable Terraform Modules
+│   └── live/                 # Environment configs (Dev, Staging, Prod)
+├── ansible/                  # Server Configuration
+├── charts/                   # Helm Charts for K8s
+├── scripts/                  # Helper scripts
 ├── ErpSystem.sln             # Main Solution File
 └── docker-compose.yaml       # Container Orchestration
 ```
@@ -93,7 +90,20 @@ Example Create Product JSON:
 
 ---
 
-## 🛡️ Security Best Practices
-- **Rate Limiting**: Configured per endpoint to prevent brute-force attacks.
-- **Auditing**: Every login, registration, and status change is logged in the `AuditLogs` table.
-- **Secrets**: Passwords and keys are managed via environment variables and appsettings.
+## � DevOps & CI/CD
+
+### 1. Environments
+- **Development**: Local Docker Compose (`docker-compose.dev.yml`) and `terraform/live/dev`.
+- **Staging**: `terraform/live/staging` and Helm-based deployment.
+- **Production**: `terraform/live/prod` with full monitoring.
+
+### 2. Monitoring
+The system includes a pre-configured monitoring stack:
+- **Prometheus**: Metrics collection.
+- **Grafana**: Visual dashboards for service health.
+
+### 3. CI/CD Pipeline
+Managed via **Jenkins**, handle automatically:
+- Docker Image builds and pushes to Registry.
+- Infrastructure provisioning via Terraform.
+- Service deployment via Helm.
