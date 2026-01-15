@@ -1,3 +1,14 @@
 ---
 env: staging
 debug_mode: false
+domain_name: staging.erp-system.com
+api_endpoint: "https://staging.api.erp-system.com"
+
+# Database Configuration
+db_name: erp_staging
+db_user: staging_user
+# db_password: "{{ vault_db_password }}"
+
+# Application Settings
+log_level: INFO
+enable_monitoring: true

@@ -1,3 +1,14 @@
 ---
 env: dev
 debug_mode: true
+domain_name: dev.erp-system.local
+api_endpoint: "https://dev.api.erp-system.local"
+
+# Database Configuration
+db_name: erp_dev
+db_user: dev_user
+# db_password: "{{ vault_db_password }}" # Use ansible-vault for real passwords
+
+# Application Settings
+log_level: DEBUG
+enable_monitoring: true

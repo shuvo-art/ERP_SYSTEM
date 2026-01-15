@@ -1,17 +1,15 @@
 ---
-- name: Provision All Servers
-  hosts: all
-  become: yes
-  vars_files:
-    - group_vars/all.yml
+# Master Playbook (Orchestrator)
+#
+# This playbook imports other specialized playbooks.
+# It acts as the "Single Source of Truth" for the entire infrastructure state.
+#
+# Usage:
+# Dev: ansible-playbook -i inventory/dev/hosts.ini site.yml
+# Prod: ansible-playbook -i inventory/prod/hosts.ini site.yml
 
-  roles:
-    - common
+# 1. Provision Infrastructure (Install Docker, Users, Base Config)
+- import_playbook: playbooks/provision.yml
 
-- name: Provision Webservers
-  hosts: webservers
-  become: yes
-  
-  roles:
-    - docker
-    # - eks-config # Uncomment if this server needs to talk to EKS
+# 2. You could import deployment playbooks here in the future
+# - import_playbook: playbooks/deploy_app.yml

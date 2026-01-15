@@ -1,3 +1,14 @@
 ---
 env: prod
 debug_mode: false
+domain_name: erp-system.com
+api_endpoint: "https://api.erp-system.com"
+
+# Database Configuration
+db_name: erp_prod
+db_user: prod_user
+# db_password: "{{ vault_db_password }}"
+
+# Application Settings
+log_level: ERROR
+enable_monitoring: true

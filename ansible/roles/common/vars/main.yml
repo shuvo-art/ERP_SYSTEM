@@ -1,2 +1,12 @@
 ---
 # vars file for common
+common_packages:
+  - git
+  - curl
+  - wget
+  - vim
+  - htop
+  - net-tools
+  - unzip
+  - software-properties-common
+  - python3-pip

@@ -1,0 +1,33 @@
+---
+# This playbook performs health checks on the servers
+# Usage: ansible-playbook -i inventory/prod/hosts.ini playbooks/health_check.yml
+
+- name: Server Health Checks
+  hosts: all
+  become: yes
+  gather_facts: no  # Speed up execution
+
+  tasks:
+    - name: Check Disk Usage
+      shell: df -h / | tail -1 | awk '{print $5}'
+      register: disk_usage
+      changed_when: false
+
+    - name: Check Memory Usage
+      shell: free -m | grep Mem | awk '{print $3/$2 * 100.0}'
+      register: mem_usage
+      changed_when: false
+
+    - name: Check Docker Service Status
+      command: systemctl is-active docker
+      register: docker_status
+      changed_when: false
+      failed_when: docker_status.rc != 0
+      when: "'webservers' in group_names"
+
+    - name: Report Status
+      debug:
+        msg:
+          - "Disk Usage: {{ disk_usage.stdout }}"
+          - "Memory Usage: {{ mem_usage.stdout | float | round(2) }}%"
+          - "Docker Status: {{ docker_status.stdout | default('N/A') }}"
