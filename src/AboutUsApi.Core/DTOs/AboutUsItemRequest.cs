@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
-namespace AboutUsApi.Api.DTOs
+namespace AboutUsApi.Core.DTOs
 {
     public class AboutUsItemRequest
     {

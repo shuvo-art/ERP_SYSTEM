@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
-using AboutUsApi.Api.DTOs;
+using AboutUsApi.Core.DTOs;
 using AboutUsApi.Core.Entities;
 using AboutUsApi.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;

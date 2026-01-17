@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace AboutUsApi.Api.DTOs
+namespace AboutUsApi.Core.DTOs
 {
     public class AboutUsResponseDto
     {
