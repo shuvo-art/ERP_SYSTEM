@@ -6,16 +6,11 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0"
     }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = ">= 2.0"
-    }
   }
 
-  # Backend configuration (Uncomment and configure key/bucket for each env)
   # backend "s3" {
   #   bucket         = "erp-terraform-state"
-  #   key            = "dev/terraform.tfstate"
+  #   key            = "prod/terraform.tfstate"
   #   region         = "us-east-1"
   #   encrypt        = true
   #   dynamodb_table = "terraform-locks"

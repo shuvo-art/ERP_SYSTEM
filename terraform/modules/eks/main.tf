@@ -1,9 +1,3 @@
-variable "cluster_name" { type = string }
-variable "cluster_version" { type = string }
-variable "vpc_id" { type = string }
-variable "subnet_ids" { type = list(string) }
-variable "environment" { type = string }
-
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
@@ -16,16 +10,7 @@ module "eks" {
   vpc_id     = var.vpc_id
   subnet_ids = var.subnet_ids
 
-  eks_managed_node_groups = {
-    main = {
-      min_size     = 1
-      max_size     = 3
-      desired_size = 2
-
-      instance_types = ["t3.medium"]
-      capacity_type  = "SPOT"
-    }
-  }
+  eks_managed_node_groups = var.node_groups
 
   enable_cluster_creator_admin_permissions = true
 

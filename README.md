@@ -30,7 +30,7 @@ The system is composed of independent services following microservices principle
 │   ├── modules/              # Reusable Terraform Modules
 │   └── live/                 # Environment configs (Dev, Staging, Prod)
 ├── ansible/                  # Server Configuration
-├── charts/                   # Helm Charts for K8s
+├── k8s/                      # Helm Charts for K8s
 ├── scripts/                  # Helper scripts
 ├── ErpSystem.sln             # Main Solution File
 └── docker-compose.yaml       # Container Orchestration

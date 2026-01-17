@@ -1,20 +1,31 @@
 variable "cluster_name" {
-  type = string
+  description = "Name of the EKS cluster"
+  type        = string
 }
 
 variable "cluster_version" {
-  type = string
-  default = "1.31"
+  description = "Kubernetes version"
+  type        = string
+  default     = "1.30"
 }
 
 variable "vpc_id" {
-  type = string
+  description = "VPC ID where the cluster will be deployed"
+  type        = string
 }
 
 variable "subnet_ids" {
-  type = list(string)
+  description = "List of subnet IDs"
+  type        = list(string)
 }
 
 variable "environment" {
-  type = string
+  description = "Environment name (dev, staging, prod)"
+  type        = string
+}
+
+variable "node_groups" {
+  description = "Map of EKS managed node groups"
+  type        = any
+  default     = {}
 }

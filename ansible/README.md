@@ -1,45 +1,59 @@
-# Ansible Deployment for ERP System
+# Server Configuration Management (Ansible)
 
-This directory contains the Ansible configuration for deploying the ERP System to Dev, Staging, and Production environments.
+This directory contains the Ansible configuration for provisioning, maintaining, and managing the servers hosting the ERP System. It follows industry best practices for directory layout, role separation, and environment isolation.
 
-## Directory Structure
+## 🏗 Directory Structure
 
-- `inventory/`: Contains environment-specific inventories and variables.
-  - `dev/`: Development environment configuration.
-  - `staging/`: Staging environment configuration.
-  - `prod/`: Production environment configuration.
-- `roles/`: Ansible roles containing tasks, templates, and handlers.
-  - `common`: Basic server setup (packages, users).
-  - `docker`: Installs Docker and configures users.
-  - `eks-config`: Configures kubectl and EKS access.
-- `site.yml`: The main playbook entry point.
-- `ansible.cfg`: Global Ansible configuration.
-
-## Usage
-
-### Development
-```bash
-ansible-playbook -i inventory/dev/hosts.ini site.yml
+```text
+ansible/
+├── ansible.cfg                # Global Ansible Settings
+├── site.yml                   # Main Orchestrator Playbook
+├── inventory/                 # Environment Inventories
+│   ├── dev/                   # Development (Localhost/Dev Servers)
+│   ├── staging/               # Staging (Pre-Prod)
+│   └── prod/                  # Production (Live)
+├── playbooks/                 # Operational Playbooks
+│   ├── provision.yml          # Initial Server Setup (Docker, Users)
+│   ├── maintenance.yml        # Patching & Updates
+│   └── health_check.yml       # Read-only Status Checks
+└── roles/                     # Reusable Logic Units
+    ├── common/                # Base packages (git, curl, vim)
+    ├── docker/                # Docker Engine & Compose setup
+    └── eks-config/            # Kubernetes Client Tools (kubectl)
 ```
 
-### Staging
+## 🚀 Usage
+
+### 1. Provisioning (Initial Setup)
+Run this when you spin up new servers to install Docker and base dependencies.
+
+**Development:**
 ```bash
-ansible-playbook -i inventory/staging/hosts.ini site.yml
+ansible-playbook -i inventory/dev/hosts.ini playbooks/provision.yml
 ```
 
-### Production
+**Production:**
 ```bash
-ansible-playbook -i inventory/prod/hosts.ini site.yml
+ansible-playbook -i inventory/prod/hosts.ini playbooks/provision.yml
 ```
 
-## Variables
+### 2. Maintenance (Patching)
+Run this to apply security updates and safely reboot servers if needed.
 
-- **Global Variables**: Defined in `group_vars/all.yml` (e.g., project name).
-- **Environment Variables**: Defined in `inventory/<env>/group_vars/all.yml` (e.g., database credentials, debug settings).
+```bash
+ansible-playbook -i inventory/prod/hosts.ini playbooks/maintenance.yml
+```
 
-## Best Practices Followed
+### 3. Health Checks
+Run this to verify disk usage, memory, and service status without making changes.
 
-- **Directory Layout**: Standard Ansible layout separating roles, inventories, and playbooks.
-- **Environment Isolation**: Separate inventory directories for each environment ensures isolation.
-- **Variable Precedence**: using `group_vars` within inventory ensures environment-specific overrides.
-- **Modular Roles**: Reusable logic encapsulated in roles.
+```bash
+ansible-playbook -i inventory/prod/hosts.ini playbooks/health_check.yml
+```
+
+## 🔑 Key Concepts
+
+- **Split Inventory**: We do not mix Dev and Prod hosts. Each environment has its own folder in `inventory/` with its own `group_vars`.
+- **Roles**: All tasks are encapsulated in roles. `site.yml` and `provision.yml` simply glue these roles together.
+- **Tags**: Playbooks use tags (e.g., `ansible-playbook ... --tags "docker"`) to run specific parts of the configuration.
+- **Idempotency**: All tasks are designed to be run multiple times without causing side effects.
