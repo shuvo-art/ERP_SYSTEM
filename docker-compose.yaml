@@ -6,11 +6,11 @@ services:
     container_name: erp_db
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_SA_PASSWORD=${DB_SA_PASSWORD}
     ports:
       - "1433:1433"
     healthcheck:
-      test: [ "CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P YourStrong@Passw0rd -C -Q 'SELECT 1' || exit 1" ]
+      test: [ "CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P ${DB_SA_PASSWORD} -C -Q 'SELECT 1' || exit 1" ]
       interval: 10s
       retries: 5
       start_period: 20s
@@ -24,7 +24,7 @@ services:
     volumes:
       - ./sql:/sql
     entrypoint: /bin/bash
-    command: -c "/opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/auth/init-auth.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/products/init-products.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/target-market/init-target-market.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/partners/init-partners.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/reference-projects/init-reference-projects.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/jobs/init-jobs.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/contact/init-contact.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrong@Passw0rd -C -i /sql/about-us/init-about-us.sql"
+    command: -c "/opt/mssql-tools/bin/sqlcmd -S db -U sa -P ${DB_SA_PASSWORD} -C -i /sql/auth/init-auth.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P ${DB_SA_PASSWORD} -C -i /sql/products/init-products.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P ${DB_SA_PASSWORD} -C -i /sql/target-market/init-target-market.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P ${DB_SA_PASSWORD} -C -i /sql/partners/init-partners.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P ${DB_SA_PASSWORD} -C -i /sql/reference-projects/init-reference-projects.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P ${DB_SA_PASSWORD} -C -i /sql/jobs/init-jobs.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P ${DB_SA_PASSWORD} -C -i /sql/contact/init-contact.sql && /opt/mssql-tools/bin/sqlcmd -S db -U sa -P ${DB_SA_PASSWORD} -C -i /sql/about-us/init-about-us.sql"
 
   auth-api:
     build:
@@ -35,19 +35,19 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
-      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
-      - JwtSettings__Issuer=AuthApi
-      - JwtSettings__Audience=ErpClients
-      - JwtSettings__AccessTokenExpirationMinutes=15
-      - JwtSettings__RefreshTokenExpirationDays=7
-      - EmailSettings__SmtpHost=smtp.gmail.com
-      - EmailSettings__SmtpPort=587
-      - EmailSettings__SmtpUser=shuvo83qn@gmail.com
-      - EmailSettings__SmtpPass=jslq wvnp phqg gjly
-      - EmailSettings__FromEmail=noreply@authapi.com
-      - EmailSettings__FromName=Auth API
-      - EmailSettings__EnableSsl=true
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - JwtSettings__SecretKey=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - JwtSettings__AccessTokenExpirationMinutes=${JWT_ACCESS_TOKEN_EXPIRATION}
+      - JwtSettings__RefreshTokenExpirationDays=${JWT_REFRESH_TOKEN_EXPIRATION}
+      - EmailSettings__SmtpHost=${SMTP_HOST}
+      - EmailSettings__SmtpPort=${SMTP_PORT}
+      - EmailSettings__SmtpUser=${SMTP_USER}
+      - EmailSettings__SmtpPass=${SMTP_PASS}
+      - EmailSettings__FromEmail=${SMTP_FROM_EMAIL}
+      - EmailSettings__FromName=${SMTP_FROM_NAME}
+      - EmailSettings__EnableSsl=${SMTP_ENABLE_SSL}
     depends_on:
       db:
         condition: service_healthy
@@ -63,13 +63,13 @@ services:
     ports:
       - "8083:8080"
     environment:
-      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
-      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
-      - JwtSettings__Issuer=AuthApi
-      - JwtSettings__Audience=ErpClients
-      - Cloudinary__CloudName=dd2tk1vnp
-      - Cloudinary__ApiKey=236387315854276
-      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - JwtSettings__SecretKey=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - Cloudinary__CloudName=${CLOUDINARY_CLOUD_NAME}
+      - Cloudinary__ApiKey=${CLOUDINARY_API_KEY}
+      - Cloudinary__ApiSecret=${CLOUDINARY_API_SECRET}
     depends_on:
       db:
         condition: service_healthy
@@ -91,13 +91,13 @@ services:
     ports:
       - "8084:8080"
     environment:
-      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
-      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
-      - JwtSettings__Issuer=AuthApi
-      - JwtSettings__Audience=ErpClients
-      - Cloudinary__CloudName=dd2tk1vnp
-      - Cloudinary__ApiKey=236387315854276
-      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - JwtSettings__SecretKey=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - Cloudinary__CloudName=${CLOUDINARY_CLOUD_NAME}
+      - Cloudinary__ApiKey=${CLOUDINARY_API_KEY}
+      - Cloudinary__ApiSecret=${CLOUDINARY_API_SECRET}
     depends_on:
       db:
         condition: service_healthy
@@ -113,13 +113,13 @@ services:
     ports:
       - "8085:8080"
     environment:
-      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
-      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
-      - JwtSettings__Issuer=AuthApi
-      - JwtSettings__Audience=ErpClients
-      - Cloudinary__CloudName=dd2tk1vnp
-      - Cloudinary__ApiKey=236387315854276
-      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - JwtSettings__SecretKey=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - Cloudinary__CloudName=${CLOUDINARY_CLOUD_NAME}
+      - Cloudinary__ApiKey=${CLOUDINARY_API_KEY}
+      - Cloudinary__ApiSecret=${CLOUDINARY_API_SECRET}
     depends_on:
       db:
         condition: service_healthy
@@ -135,13 +135,13 @@ services:
     ports:
       - "8086:8080"
     environment:
-      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
-      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
-      - JwtSettings__Issuer=AuthApi
-      - JwtSettings__Audience=ErpClients
-      - Cloudinary__CloudName=dd2tk1vnp
-      - Cloudinary__ApiKey=236387315854276
-      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - JwtSettings__SecretKey=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - Cloudinary__CloudName=${CLOUDINARY_CLOUD_NAME}
+      - Cloudinary__ApiKey=${CLOUDINARY_API_KEY}
+      - Cloudinary__ApiSecret=${CLOUDINARY_API_SECRET}
     depends_on:
       db:
         condition: service_healthy
@@ -157,13 +157,13 @@ services:
     ports:
       - "8087:8080"
     environment:
-      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
-      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
-      - JwtSettings__Issuer=AuthApi
-      - JwtSettings__Audience=ErpClients
-      - Cloudinary__CloudName=dd2tk1vnp
-      - Cloudinary__ApiKey=236387315854276
-      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - JwtSettings__SecretKey=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - Cloudinary__CloudName=${CLOUDINARY_CLOUD_NAME}
+      - Cloudinary__ApiKey=${CLOUDINARY_API_KEY}
+      - Cloudinary__ApiSecret=${CLOUDINARY_API_SECRET}
     depends_on:
       db:
         condition: service_healthy
@@ -179,10 +179,10 @@ services:
     ports:
       - "8088:8080"
     environment:
-      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
-      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
-      - JwtSettings__Issuer=AuthApi
-      - JwtSettings__Audience=ErpClients
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - JwtSettings__SecretKey=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
     depends_on:
       db:
         condition: service_healthy
@@ -198,13 +198,13 @@ services:
     ports:
       - "8089:8080"
     environment:
-      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;
-      - JwtSettings__SecretKey=your-super-secret-key-minimum-32-characters-long-change-in-production
-      - JwtSettings__Issuer=AuthApi
-      - JwtSettings__Audience=ErpClients
-      - Cloudinary__CloudName=dd2tk1vnp
-      - Cloudinary__ApiKey=236387315854276
-      - Cloudinary__ApiSecret=EQn_MV-a28FecrmvGvIZIWe4XT0
+      - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - JwtSettings__SecretKey=${JWT_SECRET}
+      - JwtSettings__Issuer=${JWT_ISSUER}
+      - JwtSettings__Audience=${JWT_AUDIENCE}
+      - Cloudinary__CloudName=${CLOUDINARY_CLOUD_NAME}
+      - Cloudinary__ApiKey=${CLOUDINARY_API_KEY}
+      - Cloudinary__ApiSecret=${CLOUDINARY_API_SECRET}
     depends_on:
       db:
         condition: service_healthy
