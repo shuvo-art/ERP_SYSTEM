@@ -210,3 +210,27 @@ services:
         condition: service_healthy
       db-init:
         condition: service_completed_successfully
+
+  redis:
+    image: redis:alpine
+    container_name: erp_redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  nginx:
+    image: nginx:alpine
+    container_name: erp_gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - auth-api
+      - product-api
+      - target-market-api
+      - partner-api
+      - reference-project-api
+      - job-api
+      - contact-api
+      - about-us-api
