@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
 
-namespace ContactApi.Api.DTOs
+namespace ContactApi.Core.DTOs
 {
     public class DistributorRequest
     {

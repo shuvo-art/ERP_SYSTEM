@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using TargetMarketApi.Api.DTOs;
+using TargetMarketApi.Core.DTOs;
 using TargetMarketApi.Core.Entities;
 using TargetMarketApi.Core.Interfaces;
 

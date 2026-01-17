@@ -19,7 +19,7 @@ builder.Services.AddEndpointsApiExplorer();
 
 // Add FluentValidation
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddValidatorsFromAssemblyContaining<JobApi.Api.Validators.JobRequestValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<JobApi.Core.Validators.JobRequestValidator>();
 
 // Configure Swagger
 builder.Services.AddSwaggerGen(options =>

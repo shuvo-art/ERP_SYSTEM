@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using JobApi.Core.Entities;
 using JobApi.Core.Interfaces;
-using JobApi.Api.DTOs;
+using JobApi.Core.DTOs;
 using System.Text.Json;
 
 namespace JobApi.Api.Controllers;

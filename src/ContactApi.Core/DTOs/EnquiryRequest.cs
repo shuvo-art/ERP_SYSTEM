@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace ContactApi.Api.DTOs
+namespace ContactApi.Core.DTOs
 {
     public class EnquiryRequest
     {

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using ReferenceProjectApi.Core.Entities;
 using ReferenceProjectApi.Core.Interfaces;
-using ReferenceProjectApi.Api.DTOs;
+using ReferenceProjectApi.Core.DTOs;
 using System.Text.Json;
 
 namespace ReferenceProjectApi.Api.Controllers;

@@ -1,7 +1,7 @@
 using FluentValidation;
-using JobApi.Api.DTOs;
+using JobApi.Core.DTOs;
 
-namespace JobApi.Api.Validators;
+namespace JobApi.Core.Validators;
 
 public class JobRequestValidator : AbstractValidator<JobRequest>
 {

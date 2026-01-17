@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
 
-namespace ProductApi.Api.DTOs;
+namespace ProductApi.Core.DTOs;
 
 public class ProductRequest
 {

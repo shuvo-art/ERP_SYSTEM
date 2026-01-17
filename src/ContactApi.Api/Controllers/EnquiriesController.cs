@@ -1,4 +1,4 @@
-using ContactApi.Api.DTOs;
+using ContactApi.Core.DTOs;
 using ContactApi.Core.Entities;
 using ContactApi.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;

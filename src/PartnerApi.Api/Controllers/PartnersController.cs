@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using PartnerApi.Api.DTOs;
+using PartnerApi.Core.DTOs;
 using PartnerApi.Core.Entities;
 using PartnerApi.Core.Interfaces;
 

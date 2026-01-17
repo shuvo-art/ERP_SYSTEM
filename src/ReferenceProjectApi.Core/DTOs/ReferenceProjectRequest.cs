@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Http;
 using ReferenceProjectApi.Core.Entities;
 using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
 
-namespace ReferenceProjectApi.Api.DTOs;
+namespace ReferenceProjectApi.Core.DTOs;
 
 public class ReferenceProjectRequest
 {

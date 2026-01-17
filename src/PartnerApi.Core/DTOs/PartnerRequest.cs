@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
 
-namespace PartnerApi.Api.DTOs;
+namespace PartnerApi.Core.DTOs;
 
 public class PartnerRequest
 {

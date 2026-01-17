@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProductApi.Core.Entities;
 using ProductApi.Core.Interfaces;
-using ProductApi.Api.DTOs;
+using ProductApi.Core.DTOs;
 using System.Text.Json;
 
 namespace ProductApi.Api.Controllers;

@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 
-namespace JobApi.Api.DTOs;
+namespace JobApi.Core.DTOs;
 
 public class JobRequest
 {

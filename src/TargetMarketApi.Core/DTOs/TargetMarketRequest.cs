@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
+using System.Collections.Generic;
 
-namespace TargetMarketApi.Api.DTOs;
+namespace TargetMarketApi.Core.DTOs;
 
 public class TargetMarketRequest
 {
