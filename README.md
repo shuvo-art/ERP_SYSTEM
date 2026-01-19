@@ -52,9 +52,20 @@ docker compose up --build -d
 ```
 
 Validating the services:
-- **Auth API Swagger**: [http://localhost:8080/swagger](http://localhost:8080/swagger)
-- **Product API Swagger**: [http://localhost:8083/swagger](http://localhost:8083/swagger)
+
+### 📖 API Documentation (Swagger)
+- 🔐 **Auth API**: [http://localhost:8080/swagger](http://localhost:8080/swagger)
+- 📦 **Product API**: [http://localhost:8083/swagger](http://localhost:8083/swagger)
+- 🎯 **Target Market API**: [http://localhost:8084/swagger](http://localhost:8084/swagger)
+- 🤝 **Partner API**: [http://localhost:8085/swagger](http://localhost:8085/swagger)
+- 🏗️ **Reference Project API**: [http://localhost:8086/swagger](http://localhost:8086/swagger)
+- 💼 **Job API**: [http://localhost:8087/swagger](http://localhost:8087/swagger)
+- 📧 **Contact API**: [http://localhost:8088/swagger](http://localhost:8088/swagger)
+- ℹ️ **About Us API**: [http://localhost:8089/swagger](http://localhost:8089/swagger)
+
+### 🛠️ Management & Gateway
 - **Adminer (DB Management)**: [http://localhost:8081](http://localhost:8081)
+- **API Gateway (Nginx)**: [http://localhost/](http://localhost/)
 
 ---
 
@@ -73,20 +84,6 @@ The Product API supports complex objects including:
 - **Specification Tables**: Structured JSON data for technical details.
 - **Document Links**: TDS, SDS, and Brochures.
 - **Image Galleries**: Main image and related previews.
-
-Example Create Product JSON:
-```json
-{
-  "name": "Industrial Coating",
-  "category": "Construction",
-  "overview": {
-    "details": "Technical overview...",
-    "specifications": [
-      { "title": "Size", "items": ["10L", "20L"] }
-    ]
-  }
-}
-```
 
 ---
 
