@@ -58,6 +58,8 @@ services:
       - EmailSettings__FromEmail=${SMTP_FROM_EMAIL}
       - EmailSettings__FromName=${SMTP_FROM_NAME}
       - EmailSettings__EnableSsl=${SMTP_ENABLE_SSL}
+    ports:
+      - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -73,6 +75,8 @@ services:
       context: .
       dockerfile: src/ProductApi.Api/Dockerfile
     container_name: product_api_prod
+    ports:
+      - "8083:8080"
     restart: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -98,6 +102,8 @@ services:
       context: .
       dockerfile: src/TargetMarketApi.Api/Dockerfile
     container_name: target_market_api_prod
+    ports:
+      - "8084:8080"
     restart: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -123,6 +129,8 @@ services:
       context: .
       dockerfile: src/PartnerApi.Api/Dockerfile
     container_name: partner_api_prod
+    ports:
+      - "8085:8080"
     restart: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -148,6 +156,8 @@ services:
       context: .
       dockerfile: src/ReferenceProjectApi.Api/Dockerfile
     container_name: reference_project_api_prod
+    ports:
+      - "8086:8080"
     restart: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -173,6 +183,8 @@ services:
       context: .
       dockerfile: src/JobApi.Api/Dockerfile
     container_name: job_api_prod
+    ports:
+      - "8087:8080"
     restart: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -198,6 +210,8 @@ services:
       context: .
       dockerfile: src/ContactApi.Api/Dockerfile
     container_name: contact_api_prod
+    ports:
+      - "8088:8080"
     restart: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -220,6 +234,8 @@ services:
       context: .
       dockerfile: src/AboutUsApi.Api/Dockerfile
     container_name: about_us_api_prod
+    ports:
+      - "8089:8080"
     restart: always
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
