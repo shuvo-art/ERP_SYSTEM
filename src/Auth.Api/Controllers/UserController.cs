@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Auth.Core.Entities;
 using Auth.Core.Interfaces;
 using Auth.Core.Enums;
+using Auth.Core.DTOs;
 using System.Security.Claims;
 
 namespace Auth.Api.Controllers;
@@ -151,12 +152,16 @@ public class UserController : ControllerBase
     /// </summary>
     [HttpPut("{userId}/role")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> UpdateRole(int userId, [FromBody] string role)
+    public async Task<IActionResult> UpdateRole(int userId, [FromBody] UpdateRoleRequest request)
     {
-        if (role != "User" && role != "Admin") return BadRequest(new { message = "Invalid role" });
+        if (request.Role != "User" && request.Role != "Admin") return BadRequest(new { message = "Invalid role" });
         
-        var success = await _authRepository.UpdateUserRoleAsync(userId, role);
-        if (!success) return NotFound(new { message = "User not found" });
+        var success = await _authRepository.UpdateUserRoleAsync(userId, request.Role);
+        if (!success) 
+        {
+            _logger.LogWarning("Failed to update role for user {UserId}. User not found or inactive.", userId);
+            return NotFound(new { message = "User not found" });
+        }
 
         return Ok(new { message = "User role updated successfully" });
     }

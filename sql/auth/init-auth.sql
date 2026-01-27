@@ -217,7 +217,6 @@ CREATE OR ALTER PROCEDURE sp_UpdateUser
     @ProfileImage NVARCHAR(500) = NULL
 AS
 BEGIN
-    SET NOCOUNT ON;
     UPDATE Users SET 
         FirstName = @FirstName,
         LastName = @LastName,
@@ -225,7 +224,7 @@ BEGIN
         Country = @Country,
         Language = @Language,
         ProfileImage = @ProfileImage
-    WHERE Id = @Id;
+    WHERE Id = @Id AND IsActive = 1;
 END
 GO
 
@@ -234,12 +233,11 @@ CREATE OR ALTER PROCEDURE sp_UpdatePassword
     @PasswordHash NVARCHAR(255)
 AS
 BEGIN
-    SET NOCOUNT ON;
     UPDATE Users SET 
         PasswordHash = @PasswordHash,
         PasswordResetOTP = NULL,
         PasswordResetExpires = NULL
-    WHERE Id = @UserId;
+    WHERE Id = @UserId AND IsActive = 1;
 END
 GO
 
@@ -257,8 +255,7 @@ CREATE OR ALTER PROCEDURE sp_UpdateUserRole
     @Role NVARCHAR(20)
 AS
 BEGIN
-    SET NOCOUNT ON;
-    UPDATE Users SET Role = @Role WHERE Id = @UserId;
+    UPDATE Users SET Role = @Role WHERE Id = @UserId AND IsActive = 1;
 END
 GO
 
@@ -280,8 +277,7 @@ CREATE OR ALTER PROCEDURE sp_UpdateFcmToken
     @Token NVARCHAR(500)
 AS
 BEGIN
-    SET NOCOUNT ON;
-    UPDATE Users SET FcmToken = @Token WHERE Id = @UserId;
+    UPDATE Users SET FcmToken = @Token WHERE Id = @UserId AND IsActive = 1;
 END
 GO
 
