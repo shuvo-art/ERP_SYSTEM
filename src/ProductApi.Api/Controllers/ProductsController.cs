@@ -81,27 +81,33 @@ public class ProductsController : ControllerBase
                 SubCategory = request.SubCategory,
                 Brand = request.Brand,
                 ApplicationRange = request.ApplicationRange,
-                Overview = new Overview { Details = request.OverviewDetails },
-                Advantages = request.Advantages,
-                Precautions = request.Precautions
+                Advantages = request.Advantages ?? new(),
+                Precautions = request.Precautions ?? new()
             };
 
-            // Handle Overview
-            if (!string.IsNullOrEmpty(request.OverviewJson))
+            try 
             {
-                product.Overview = JsonSerializer.Deserialize<Overview>(
-                    request.OverviewJson, 
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-            }
-            else 
-            {
-                product.Overview = new Overview { Details = request.OverviewDetails };
-                if (!string.IsNullOrEmpty(request.SpecificationsJson))
+                // Handle Overview
+                if (!string.IsNullOrEmpty(request.OverviewJson))
                 {
-                    product.Overview.Specifications = JsonSerializer.Deserialize<List<Specification>>(
-                        request.SpecificationsJson, 
+                    product.Overview = JsonSerializer.Deserialize<Overview>(
+                        request.OverviewJson, 
                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
                 }
+                else 
+                {
+                    product.Overview = new Overview { Details = request.OverviewDetails };
+                    if (!string.IsNullOrEmpty(request.SpecificationsJson))
+                    {
+                        product.Overview.Specifications = JsonSerializer.Deserialize<List<Specification>>(
+                            request.SpecificationsJson, 
+                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                return BadRequest(new { message = "Invalid JSON format in OverviewJson or SpecificationsJson", details = ex.Message });
             }
 
             // Handle Image Upload
@@ -161,26 +167,33 @@ public class ProductsController : ControllerBase
             if (request.Advantages != null && request.Advantages.Any()) product.Advantages = request.Advantages;
             if (request.Precautions != null && request.Precautions.Any()) product.Precautions = request.Precautions;
 
-            // Handle Overview
-            if (!string.IsNullOrEmpty(request.OverviewJson))
+            try 
             {
-                product.Overview = JsonSerializer.Deserialize<Overview>(
-                    request.OverviewJson, 
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-            }
-            else if (!string.IsNullOrEmpty(request.OverviewDetails) || !string.IsNullOrEmpty(request.SpecificationsJson))
-            {
-                if (product.Overview == null) product.Overview = new Overview();
-                
-                if (!string.IsNullOrEmpty(request.OverviewDetails)) 
-                    product.Overview.Details = request.OverviewDetails;
-
-                if (!string.IsNullOrEmpty(request.SpecificationsJson))
+                // Handle Overview
+                if (!string.IsNullOrEmpty(request.OverviewJson))
                 {
-                    product.Overview.Specifications = JsonSerializer.Deserialize<List<Specification>>(
-                        request.SpecificationsJson, 
+                    product.Overview = JsonSerializer.Deserialize<Overview>(
+                        request.OverviewJson, 
                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
                 }
+                else if (!string.IsNullOrEmpty(request.OverviewDetails) || !string.IsNullOrEmpty(request.SpecificationsJson))
+                {
+                    if (product.Overview == null) product.Overview = new Overview();
+                    
+                    if (!string.IsNullOrEmpty(request.OverviewDetails)) 
+                        product.Overview.Details = request.OverviewDetails;
+
+                    if (!string.IsNullOrEmpty(request.SpecificationsJson))
+                    {
+                        product.Overview.Specifications = JsonSerializer.Deserialize<List<Specification>>(
+                            request.SpecificationsJson, 
+                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                return BadRequest(new { message = "Invalid JSON format in OverviewJson or SpecificationsJson", details = ex.Message });
             }
 
             // Handle new file uploads (only if provided and NOT empty)
