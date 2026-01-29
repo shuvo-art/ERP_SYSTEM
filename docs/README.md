@@ -26,6 +26,9 @@ Welcome to the official documentation for the ERP System. This project provides 
     *   🔐 **[Auth API Details](api/auth.md)**: Detailed specifications and `curl` commands.
     *   📦 **[Product API Details](api/products.md)**: Catalog and asset management.
     *   ℹ️ **[About Us API Details](api/about-us.md)**: Company profile and section management.
+    *   📧 **[Contact API Details](api/contact.md)**: Distributors and enquiries.
+    *   💼 **[Job API Details](api/jobs.md)**: Recruitment and applications.
+    *   🤝 **[Partner API Details](api/partners.md)**: Partner management.
 
 5.  **[Deployment Guide](deployment.md)**
     *   Terraform (Infrastructure as Code)

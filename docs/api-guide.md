@@ -60,6 +60,10 @@ Detailed documentation and curl examples: **[Auth API Docs](api/auth.md)**
 - `POST /api/v1/auth/login`
 - `PUT /api/v1/users/{userId}/role`: (Admin only) Assign roles.
 
+### User Service
+- `GET /api/v1/users/profile`: Get current user info.
+- `PUT /api/v1/users/profile`: Update profile.
+
 ### Product Service
 Detailed documentation and curl examples: **[Product API Docs](api/products.md)**
 
@@ -72,6 +76,24 @@ Detailed documentation and curl examples: **[About Us API Docs](api/about-us.md)
 
 - `GET /api/v1/about-us`: Get company profile.
 - `PATCH /api/v1/about-us/sections/{name}`: (Admin only) Update content.
+
+### Contact Service
+Detailed documentation and curl examples: **[Contact API Docs](api/contact.md)**
+
+- `POST /api/v1/contact/enquiries`: Public enquiry submission.
+- `GET /api/v1/distributors`: List distributors.
+
+### Job Service
+Detailed documentation and curl examples: **[Job API Docs](api/jobs.md)**
+
+- `GET /api/v1/jobs`: List openings.
+- `POST /api/v1/jobs/{id}/apply`: Submit application.
+
+### Partner Service
+Detailed documentation and curl examples: **[Partner API Docs](api/partners.md)**
+
+- `GET /api/v1/partners`: List partners.
+- `GET /api/v1/partners/{slug}`: Get details.
 
 ## 📄 Documentation (Swagger)
 Each service provides interactive documentation at `http://localhost:<port>/swagger`. See root `README.md` for the port mapping.
