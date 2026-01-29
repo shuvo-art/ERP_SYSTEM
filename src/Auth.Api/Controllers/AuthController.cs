@@ -9,7 +9,7 @@ using Shared.Kernel.Interfaces;
 namespace Auth.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/v1/auth")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthRepository _authRepository;

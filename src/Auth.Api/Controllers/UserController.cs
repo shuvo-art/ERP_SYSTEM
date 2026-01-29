@@ -9,7 +9,7 @@ using System.Security.Claims;
 namespace Auth.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/v1/users")]
 [Authorize]
 public class UserController : ControllerBase
 {

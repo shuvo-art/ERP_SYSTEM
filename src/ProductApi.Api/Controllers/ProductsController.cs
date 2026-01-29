@@ -8,7 +8,7 @@ using System.Text.Json;
 namespace ProductApi.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/v1/products")]
 public class ProductsController : ControllerBase
 {
     private readonly IProductRepository _productRepository;

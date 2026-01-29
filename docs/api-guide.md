@@ -54,14 +54,14 @@ The system uses a unified response wrapper:
 ## 🛠️ Common Endpoints
 
 ### Auth Service
-- `POST /api/v1/User/register`
-- `POST /api/v1/User/login`
-- `POST /api/v1/User/{userId}/role`: (Admin only) Assign roles.
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `PUT /api/v1/users/{userId}/role`: (Admin only) Assign roles.
 
 ### Product Service
-- `GET /api/v1/Products`: List all products.
-- `GET /api/v1/Products/{id}`: Get details.
-- `POST /api/v1/Products`: Create (Staff/Admin).
+- `GET /api/v1/products`: List all products.
+- `GET /api/v1/products/{id}`: Get details.
+- `POST /api/v1/products`: Create (Staff/Admin).
 
 ## 📄 Documentation (Swagger)
 Each service provides interactive documentation at `http://localhost:<port>/swagger`. See root `README.md` for the port mapping.
