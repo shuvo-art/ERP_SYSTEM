@@ -2,6 +2,19 @@
 
 A modern, enterprise-grade set of microservices built with **.NET 8**, focusing on **Identity Management** and **Product Catalog** services. The project follows **Clean Architecture** patterns and is designed for high performance and scalability.
 
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](docs/README.md)
+[![Contributing](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+## 📚 Documentation
+
+- 🏗️ **[Architecture Overview](docs/architecture.md)**: Deep dive into the system design.
+- 🚀 **[Development Guide](docs/development.md)**: How to set up and run the project locally.
+- 🔑 **[API Guide](docs/api-guide.md)**: Standards, authentication, and response formats.
+- ☸️ **[Deployment Guide](docs/deployment.md)**: Infrastructure, DevOps, and CI/CD.
+- 🤝 **[Contributing](CONTRIBUTING.md)**: Guidelines for contributing to the project.
+- 📝 **[Changelog](CHANGELOG.md)**: History of changes.
+
 ---
 
 ## 🏗️ Architecture Overview
