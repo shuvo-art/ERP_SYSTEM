@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, and `CHANGELOG.md`.
 - `docs/` folder with architecture, api-guide, development, and deployment documentation.
 
+### Changed
+- Standardized JWT claim names to use `firstName` and `lastName` literals.
+- Standardized API endpoints to use lowercase kebab-case across all microservices.
+
 ## [1.0.0] - 2026-01-29
 
 ### Added

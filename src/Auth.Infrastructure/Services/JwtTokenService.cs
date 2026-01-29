@@ -43,12 +43,12 @@ public class JwtTokenService : IJwtTokenService
 
         if (!string.IsNullOrEmpty(user.FirstName))
         {
-            claims.Add(new Claim(ClaimTypes.GivenName, user.FirstName));
+            claims.Add(new Claim("firstName", user.FirstName));
         }
 
         if (!string.IsNullOrEmpty(user.LastName))
         {
-            claims.Add(new Claim(ClaimTypes.Surname, user.LastName));
+            claims.Add(new Claim("lastName", user.LastName));
         }
 
         var tokenDescriptor = new SecurityTokenDescriptor
