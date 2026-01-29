@@ -22,7 +22,10 @@ Welcome to the official documentation for the ERP System. This project provides 
     *   HTTP status codes
     *   Core endpoint summary
 
-4.  **[Deployment Guide](deployment.md)**
+4.  **Microservice Specific Docs**
+    *   🔐 **[Auth API Details](api/auth.md)**: Detailed specifications and `curl` commands.
+
+5.  **[Deployment Guide](deployment.md)**
     *   Terraform (Infrastructure as Code)
     *   Ansible (Configuration Management)
     *   Kubernetes (Helm Charts)

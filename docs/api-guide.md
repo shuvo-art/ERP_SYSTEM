@@ -54,6 +54,8 @@ The system uses a unified response wrapper:
 ## 🛠️ Common Endpoints
 
 ### Auth Service
+Detailed documentation and curl examples: **[Auth API Docs](api/auth.md)**
+
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
 - `PUT /api/v1/users/{userId}/role`: (Admin only) Assign roles.
