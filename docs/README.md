@@ -29,6 +29,8 @@ Welcome to the official documentation for the ERP System. This project provides 
     *   📧 **[Contact API Details](api/contact.md)**: Distributors and enquiries.
     *   💼 **[Job API Details](api/jobs.md)**: Recruitment and applications.
     *   🤝 **[Partner API Details](api/partners.md)**: Partner management.
+    *   🏗️ **[Reference Project API Details](api/reference-projects.md)**: Project showcase and portfolio.
+    *   🎯 **[Target Market API Details](api/target-markets.md)**: Industrial sectors and outreach.
 
 5.  **[Deployment Guide](deployment.md)**
     *   Terraform (Infrastructure as Code)

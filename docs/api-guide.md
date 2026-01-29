@@ -95,5 +95,17 @@ Detailed documentation and curl examples: **[Partner API Docs](api/partners.md)*
 - `GET /api/v1/partners`: List partners.
 - `GET /api/v1/partners/{slug}`: Get details.
 
+### Reference Project Service
+Detailed documentation and curl examples: **[Reference Project API Docs](api/reference-projects.md)**
+
+- `GET /api/v1/reference-projects`: View portfolio.
+- `POST /api/v1/reference-projects`: (Admin only) Add project.
+
+### Target Market Service
+Detailed documentation and curl examples: **[Target Market API Docs](api/target-markets.md)**
+
+- `GET /api/v1/target-markets`: View industrial sectors.
+- `POST /api/v1/target-markets`: (Admin only) Manage markets.
+
 ## 📄 Documentation (Swagger)
 Each service provides interactive documentation at `http://localhost:<port>/swagger`. See root `README.md` for the port mapping.
