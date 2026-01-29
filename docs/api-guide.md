@@ -61,9 +61,17 @@ Detailed documentation and curl examples: **[Auth API Docs](api/auth.md)**
 - `PUT /api/v1/users/{userId}/role`: (Admin only) Assign roles.
 
 ### Product Service
+Detailed documentation and curl examples: **[Product API Docs](api/products.md)**
+
 - `GET /api/v1/products`: List all products.
 - `GET /api/v1/products/{id}`: Get details.
 - `POST /api/v1/products`: Create (Staff/Admin).
+
+### About Us Service
+Detailed documentation and curl examples: **[About Us API Docs](api/about-us.md)**
+
+- `GET /api/v1/about-us`: Get company profile.
+- `PATCH /api/v1/about-us/sections/{name}`: (Admin only) Update content.
 
 ## 📄 Documentation (Swagger)
 Each service provides interactive documentation at `http://localhost:<port>/swagger`. See root `README.md` for the port mapping.
