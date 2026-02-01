@@ -72,7 +72,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+        policy.SetIsOriginAllowed(_ => true) // More robust than AllowAnyOrigin for preflights
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials(); // Often needed if frontend uses cookies/credentials
     });
 });
 
@@ -101,8 +104,8 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.UseSecurityHeaders();
 app.UseCors("AllowAll");
+app.UseSecurityHeaders();
 app.UseIpRateLimiting();
 app.UseAuthentication();
 app.UseAuthorization();
