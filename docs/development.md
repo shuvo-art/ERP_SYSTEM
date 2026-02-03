@@ -16,6 +16,8 @@ git clone <repository-url>
 cd ERP_SYSTEM
 ```
 
+> **Note:** Please refer to the [Git Workflow Guide](./git-workflow.md) for detailed instructions on branching strategies and commit conventions.
+
 ### 2. Environment Variables
 Copy `.env.example` to `.env` and fill in the required values (DB passwords, SMTP settings, Cloudinary keys).
 ```bash
