@@ -25,17 +25,20 @@ public class TargetMarketsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int limit = 10)
+    public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] int? page, [FromQuery] int? limit)
     {
         try
         {
-            var (data, total) = await _repository.GetAllAsync(search, page, limit);
+            int pageNumber = page ?? 1;
+            int pageSize = limit ?? int.MaxValue;
+
+            var (data, total) = await _repository.GetAllAsync(search, pageNumber, pageSize);
             return Ok(new
             {
                 data,
                 total,
-                page,
-                limit
+                page = pageNumber,
+                limit = pageSize
             });
         }
         catch (Exception ex)
