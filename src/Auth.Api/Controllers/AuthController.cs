@@ -21,6 +21,7 @@ public class AuthController : ControllerBase
     private readonly IValidator<LoginRequest> _loginValidator;
     private readonly IEmailService _emailService;
     private readonly IOtpService _otpService;
+    private readonly IValidator<ResendOtpRequest> _resendOtpValidator;
 
     public AuthController(
         IAuthRepository authRepository,
@@ -31,7 +32,8 @@ public class AuthController : ControllerBase
         IValidator<RegisterRequest> registerValidator,
         IValidator<LoginRequest> loginValidator,
         IEmailService emailService,
-        IOtpService otpService)
+        IOtpService otpService,
+        IValidator<ResendOtpRequest> resendOtpValidator)
     {
         _authRepository = authRepository;
         _jwtTokenService = jwtTokenService;
@@ -42,6 +44,7 @@ public class AuthController : ControllerBase
         _loginValidator = loginValidator;
         _emailService = emailService;
         _otpService = otpService;
+        _resendOtpValidator = resendOtpValidator;
     }
 
     /// <summary>
@@ -179,6 +182,78 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Resend verification OTP if expired or not received
+    /// </summary>
+    [HttpPost("resend-otp")]
+    public async Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request)
+    {
+        try
+        {
+            var validationResult = await _resendOtpValidator.ValidateAsync(request);
+            if (!validationResult.IsValid)
+            {
+                return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+            }
+
+            var user = await _authRepository.GetUserByEmailAsync(request.Email);
+            
+            // Industry standard: Don't reveal if user exists or not if it's a security concern, 
+            // but for "resend" usually the user is already interacting with their account.
+            if (user == null)
+            {
+                // To prevent enumeration, we can return OK but mention "If the email is valid..."
+                return Ok(new { message = "If the account exists and is not verified, a new OTP has been sent." });
+            }
+
+            if (user.IsEmailVerified)
+            {
+                return BadRequest(new { message = "Email is already verified." });
+            }
+
+            // Industry standard: Cooldown/Rate limiting
+            // Check if the last OTP was sent too recently (using expiry as a proxy for 'sent at')
+            // If expiry is 15 mins from now, and current expiry is > 14 mins from now, it was sent < 1 min ago.
+            if (user.EmailVerificationExpires.HasValue && 
+                user.EmailVerificationExpires.Value > DateTime.UtcNow.AddMinutes(14))
+            {
+                return StatusCode(429, new { message = "Please wait before requesting another OTP." });
+            }
+
+            // Generate new OTP
+            var otp = _otpService.GenerateOtp();
+            var expiry = DateTime.UtcNow.AddMinutes(15);
+            
+            await _authRepository.SetEmailVerificationOTPAsync(user.Id, otp, expiry);
+
+            // Audit log
+            await _authRepository.LogAuditEventAsync(new AuditLog
+            {
+                UserId = user.Id,
+                Action = "OTP_RESENT",
+                IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                UserAgent = Request.Headers["User-Agent"].ToString(),
+                Success = true
+            });
+
+            // Send Email
+            await _emailService.SendEmailAsync(
+                user.Email,
+                "Verify Your Email - New OTP",
+                $"Your new verification code is: <strong>{otp}</strong>. It expires in 15 minutes."
+            );
+
+            _logger.LogInformation("OTP resent for user: {Email}", request.Email);
+
+            return Ok(new { message = "A new verification OTP has been sent to your email." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during resending OTP");
+            return StatusCode(500, new { message = "Internal server error during OTP resend" });
+        }
+    }
+
+    /// <summary>
     /// Login and get access token
     /// </summary>
     [HttpPost("login")]
@@ -242,19 +317,28 @@ public class AuthController : ControllerBase
             // Check if email is verified
             if (!user.IsEmailVerified)
             {
-                // Resend OTP
-                var otp = _otpService.GenerateOtp();
-                var expiry = DateTime.UtcNow.AddMinutes(15);
-                await _authRepository.SetEmailVerificationOTPAsync(user.Id, otp, expiry);
+                // Industry standard: Cooldown check before resending
+                bool otpSent = false;
+                if (!user.EmailVerificationExpires.HasValue || 
+                    user.EmailVerificationExpires.Value <= DateTime.UtcNow.AddMinutes(14))
+                {
+                    // Resend OTP
+                    var otp = _otpService.GenerateOtp();
+                    var expiry = DateTime.UtcNow.AddMinutes(15);
+                    await _authRepository.SetEmailVerificationOTPAsync(user.Id, otp, expiry);
 
-                await _emailService.SendEmailAsync(
-                    user.Email,
-                    "Verify Your Email",
-                    $"Your verification code is: <strong>{otp}</strong>. It expires in 15 minutes."
-                );
+                    await _emailService.SendEmailAsync(
+                        user.Email,
+                        "Verify Your Email",
+                        $"Your verification code is: <strong>{otp}</strong>. It expires in 15 minutes."
+                    );
+                    
+                    otpSent = true;
+                    _logger.LogInformation("OTP resent during login for user: {Email}", user.Email);
+                }
 
                 return StatusCode(403, new { 
-                    message = "Please verify your email address. A new OTP has been sent.",
+                    message = otpSent ? "Please verify your email address. A new OTP has been sent." : "Please verify your email address. An OTP was recently sent to your email.",
                     email = user.Email
                 });
             }
@@ -372,6 +456,13 @@ public class AuthController : ControllerBase
             if (user == null)
             {
                 // Return Ok to prevent user enumeration
+                return Ok(new { message = "If the email exists, a password reset OTP has been sent" });
+            }
+
+            // Industry standard: Cooldown check
+            if (user.PasswordResetExpires.HasValue && 
+                user.PasswordResetExpires.Value > DateTime.UtcNow.AddMinutes(14))
+            {
                 return Ok(new { message = "If the email exists, a password reset OTP has been sent" });
             }
 
