@@ -657,10 +657,23 @@ public class AuthController : ControllerBase
                 return Unauthorized(new { message = "Invalid token" });
             }
 
-            var user = await _authRepository.GetUserByIdAsync(userId);
+            // Define Cache Key
+            var cacheKey = $"user_profile_{userId}";
+
+            // Try to get from Cache (Fast Path)
+            var user = await _cacheService.GetAsync<User>(cacheKey);
             if (user == null)
             {
-                return NotFound(new { message = "User not found" });
+                // Cache Miss - Get from DB (Slow Path)
+                _logger.LogInformation("Cache miss for user profile: {UserId}. Fetching from DB.", userId);
+                user = await _authRepository.GetUserByIdAsync(userId);
+                if (user == null)
+                {
+                    return NotFound(new { message = "User not found" });
+                }
+
+                // Save to Cache for 30 minutes
+                await _cacheService.SetAsync(cacheKey, user, TimeSpan.FromMinutes(30));
             }
 
             return Ok(new

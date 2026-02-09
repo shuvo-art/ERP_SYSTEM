@@ -82,10 +82,20 @@ builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 
-// Configure Rate Limiting
-builder.Services.AddMemoryCache();
+// Configure Rate Limiting (Distributed via Redis)
+builder.Services.AddMemoryCache(); 
 builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
-builder.Services.AddInMemoryRateLimiting();
+
+// Add standard rate limiting services
+builder.Services.AddInMemoryRateLimiting(); 
+
+// Add Redis Infrastructure
+builder.Services.AddRedisCache(builder.Configuration);
+
+// Override standard stores with Redis versions
+builder.Services.AddRedisRateLimiting();
+
+// Configuration logic
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
 // Configure CORS

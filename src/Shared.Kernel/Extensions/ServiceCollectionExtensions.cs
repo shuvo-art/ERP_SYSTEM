@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using StackExchange.Redis;
+using AspNetCoreRateLimit;
+using AspNetCoreRateLimit.Redis;
 using Shared.Kernel.Interfaces;
 using Shared.Kernel.Services;
 
@@ -19,6 +21,15 @@ public static class ServiceCollectionExtensions
             
         services.AddScoped<ICacheService, RedisCacheService>();
         
+        return services;
+    }
+    public static IServiceCollection AddRedisRateLimiting(this IServiceCollection services)
+    {
+        // This tells the AspNetCoreRateLimit library to use Redis instead of Memory
+        services.AddSingleton<IRateLimitCounterStore, DistributedCacheRateLimitCounterStore>();
+        services.AddSingleton<IIpPolicyStore, DistributedCacheIpPolicyStore>();
+        services.AddSingleton<IClientPolicyStore, DistributedCacheClientPolicyStore>();
+
         return services;
     }
 }

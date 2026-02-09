@@ -16,15 +16,18 @@ public class UserController : ControllerBase
     private readonly IAuthRepository _authRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ILogger<UserController> _logger;
+    private readonly ICacheService _cacheService;
 
     public UserController(
         IAuthRepository authRepository,
         IPasswordHasher passwordHasher,
-        ILogger<UserController> logger)
+        ILogger<UserController> logger,
+        ICacheService cacheService)
     {
         _authRepository = authRepository;
         _passwordHasher = passwordHasher;
         _logger = logger;
+        _cacheService = cacheService;
     }
 
     /// <summary>
@@ -80,6 +83,10 @@ public class UserController : ControllerBase
 
         var success = await _authRepository.UpdateUserAsync(user);
         if (!success) return StatusCode(500, new { message = "Failed to update profile" });
+
+        // Clear cache for this user
+        var cacheKey = $"user_profile_{userId}";
+        await _cacheService.RemoveAsync(cacheKey);
 
         return Ok(new { message = "Profile updated successfully" });
     }
