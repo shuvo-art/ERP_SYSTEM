@@ -8,4 +8,8 @@ public static class MiddlewareExtensions
     {
         return builder.UseMiddleware<Shared.Kernel.Middleware.SecurityHeadersMiddleware>();
     }
+    public static IApplicationBuilder UseTokenBlacklist(this IApplicationBuilder builder)
+    {
+        return builder.UseMiddleware<Shared.Kernel.Middleware.TokenBlacklistMiddleware>();
+    }
 }

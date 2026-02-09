@@ -132,6 +132,9 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+// Add Redis
+builder.Services.AddRedisCache(builder.Configuration);
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -140,6 +143,7 @@ app.UseSwaggerUI();
 
 app.UseCors("AllowAll");
 app.UseSecurityHeaders();
+app.UseTokenBlacklist();
 app.UseIpRateLimiting();
 app.UseAuthentication();
 app.UseAuthorization();

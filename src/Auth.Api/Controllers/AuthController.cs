@@ -22,6 +22,7 @@ public class AuthController : ControllerBase
     private readonly IEmailService _emailService;
     private readonly IOtpService _otpService;
     private readonly IValidator<ResendOtpRequest> _resendOtpValidator;
+    private readonly ICacheService _cacheService;
 
     public AuthController(
         IAuthRepository authRepository,
@@ -33,7 +34,8 @@ public class AuthController : ControllerBase
         IValidator<LoginRequest> loginValidator,
         IEmailService emailService,
         IOtpService otpService,
-        IValidator<ResendOtpRequest> resendOtpValidator)
+        IValidator<ResendOtpRequest> resendOtpValidator,
+        ICacheService cacheService)
     {
         _authRepository = authRepository;
         _jwtTokenService = jwtTokenService;
@@ -45,6 +47,7 @@ public class AuthController : ControllerBase
         _emailService = emailService;
         _otpService = otpService;
         _resendOtpValidator = resendOtpValidator;
+        _cacheService = cacheService;
     }
 
     /// <summary>
@@ -95,6 +98,10 @@ public class AuthController : ControllerBase
             
             await _authRepository.SetEmailVerificationOTPAsync(userId, otp, expiry);
 
+            // Cache OTP in Redis for fast verification
+            var cacheKey = $"otp_verify_{request.Email}";
+            await _cacheService.SetAsync(cacheKey, otp, TimeSpan.FromMinutes(15));
+
             // Send Email
             await _emailService.SendEmailAsync(
                 request.Email,
@@ -136,6 +143,22 @@ public class AuthController : ControllerBase
     {
         try
         {
+            // Try to get result from Cache first (The fast path)
+            var cacheKey = $"otp_verify_{request.Email}";
+            var cachedOtp = await _cacheService.GetAsync<string>(cacheKey);
+
+            if (cachedOtp != null)
+            {
+                if (cachedOtp != request.Otp)
+                {
+                    return BadRequest(new { message = "Invalid or expired OTP" });  
+                }
+                // OTP is valid in cache! 
+                // Proceed to mark user as verified in DB...
+                await _cacheService.RemoveAsync(cacheKey);
+            }
+
+            // If OTP is not in cache, check in DB (The slow path)
             var user = await _authRepository.VerifyEmailOTPAsync(request.Email, request.Otp);
             if (user == null)
             {
@@ -224,6 +247,9 @@ public class AuthController : ControllerBase
             var expiry = DateTime.UtcNow.AddMinutes(15);
             
             await _authRepository.SetEmailVerificationOTPAsync(user.Id, otp, expiry);
+
+            var cacheKey = $"otp_verify_{user.Email}";
+            await _cacheService.SetAsync(cacheKey, otp, TimeSpan.FromMinutes(15));
 
             // Audit log
             await _authRepository.LogAuditEventAsync(new AuditLog
@@ -326,6 +352,9 @@ public class AuthController : ControllerBase
                     var otp = _otpService.GenerateOtp();
                     var expiry = DateTime.UtcNow.AddMinutes(15);
                     await _authRepository.SetEmailVerificationOTPAsync(user.Id, otp, expiry);
+
+                    var cacheKey = $"otp_verify_{user.Email}";
+                    await _cacheService.SetAsync(cacheKey, otp, TimeSpan.FromMinutes(15));
 
                     await _emailService.SendEmailAsync(
                         user.Email,
@@ -471,6 +500,9 @@ public class AuthController : ControllerBase
             
             await _authRepository.SetPasswordResetOTPAsync(user.Id, otp, expiry);
 
+            var cacheKey = $"otp_pwd_reset_{user.Email}";
+            await _cacheService.SetAsync(cacheKey, otp, TimeSpan.FromMinutes(15));
+
             // Audit log
             await _authRepository.LogAuditEventAsync(new AuditLog
             {
@@ -507,6 +539,21 @@ public class AuthController : ControllerBase
     {
         try
         {
+            // Check cache first
+            var cacheKey = $"otp_pwd_reset_{request.Email}";
+            var cachedOtp = await _cacheService.GetAsync<string>(cacheKey);
+            if (cachedOtp != null)
+            {
+                if (cachedOtp != request.Otp)
+                {
+                    return BadRequest(new { message = "Invalid or expired OTP" });  
+                }
+                // OTP is valid in cache! 
+                // Proceed to mark user as verified in DB...
+                await _cacheService.RemoveAsync(cacheKey);
+            }
+
+            // If OTP is not in cache, check in DB (The slow path)
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Otp) || string.IsNullOrWhiteSpace(request.NewPassword))
             {
                 return BadRequest(new { message = "Email, OTP and new password are required" });
@@ -577,6 +624,14 @@ public class AuthController : ControllerBase
             Response.Cookies.Delete("refreshToken");
 
             _logger.LogInformation("User logged out successfully");
+
+            // Get the token from the header to blacklist it
+            var token = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+            if (!string.IsNullOrEmpty(token))
+            {
+                var blacklistKey = $"blacklist_{token}";
+                await _cacheService.SetAsync(blacklistKey, "revoked", TimeSpan.FromHours(24));
+            }
 
             return Ok(new { message = "Logged out successfully" });
         }
