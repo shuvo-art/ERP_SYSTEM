@@ -61,8 +61,7 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // Connection string
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-                       ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 if (string.IsNullOrEmpty(connectionString))
 {

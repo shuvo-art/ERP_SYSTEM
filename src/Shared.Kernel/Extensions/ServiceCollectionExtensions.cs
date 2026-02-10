@@ -10,19 +10,27 @@ namespace Shared.Kernel.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddRedisCache(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddRedisCache(this IServiceCollection services, IConfiguration configuration, string? instanceName = null)
     {
         // Default to "redis" host name if running in docker-compose, or localhost if undefined
-        // Ideally should be set in ConnectionStrings:Redis
-        var redisConnection = configuration.GetConnectionString("Redis") ?? configuration["RedisSettings:ConnectionString"] ?? "redis:6379";
+        var redisConnection = configuration.GetConnectionString("Redis") ?? "redis:6379";
         
+        // Dynamic Instance Name: Priority: Configuration > Parameter > Default
+        var prefix = configuration["RedisSettings:InstanceName"] ?? instanceName ?? "ERP_";
+        
+        // Ensure prefix ends with underscore for readability
+        if (!string.IsNullOrEmpty(prefix) && !prefix.EndsWith("_"))
+        {
+            prefix += "_";
+        }
+
         services.AddSingleton<IConnectionMultiplexer>(sp => 
             ConnectionMultiplexer.Connect(redisConnection));
 
         services.AddStackExchangeRedisCache(options =>
         {
             options.Configuration = redisConnection;
-            options.InstanceName = "ERP_";
+            options.InstanceName = prefix;
         });
             
         services.AddScoped<ICacheService, RedisCacheService>();

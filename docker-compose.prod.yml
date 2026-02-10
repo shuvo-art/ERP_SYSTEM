@@ -47,6 +47,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Server=db;Database=Master;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
       - ConnectionStrings__Redis=redis:6379
+      - RedisSettings__InstanceName=Auth_Prod
       - JwtSettings__SecretKey=${JWT_SECRET}
       - JwtSettings__Issuer=${JWT_ISSUER}
       - JwtSettings__Audience=${JWT_AUDIENCE}
