@@ -5,6 +5,7 @@ using Auth.Core.Interfaces;
 using Auth.Core.Enums;
 using Auth.Core.DTOs;
 using System.Security.Claims;
+using Shared.Kernel.Interfaces;
 
 namespace Auth.Api.Controllers;
 
@@ -39,8 +40,20 @@ public class UserController : ControllerBase
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim == null) return Unauthorized();
 
-        var user = await _authRepository.GetUserByIdAsync(int.Parse(userIdClaim.Value));
-        if (user == null) return NotFound(new { message = "User not found" });
+        var userId = int.Parse(userIdClaim.Value);
+        var cacheKey = $"user_profile_{userId}";
+
+        // Try to get from Cache
+        var user = await _cacheService.GetAsync<User>(cacheKey);
+        if (user == null)
+        {
+            _logger.LogInformation("Cache miss for user profile: {UserId}. Fetching from DB.", userId);
+            user = await _authRepository.GetUserByIdAsync(userId);
+            if (user == null) return NotFound(new { message = "User not found" });
+
+            // Save to Cache for 30 minutes
+            await _cacheService.SetAsync(cacheKey, user, TimeSpan.FromMinutes(30));
+        }
 
         return Ok(new { 
             user.Id, 
@@ -170,6 +183,9 @@ public class UserController : ControllerBase
             return NotFound(new { message = "User not found" });
         }
 
+        // Invalidate Cache
+        await _cacheService.RemoveAsync($"user_profile_{userId}");
+
         return Ok(new { message = "User role updated successfully" });
     }
 
@@ -185,6 +201,9 @@ public class UserController : ControllerBase
 
         var success = await _authRepository.DeleteUserAsync(userId);
         if (!success) return NotFound(new { message = "User not found" });
+
+        // Invalidate Cache
+        await _cacheService.RemoveAsync($"user_profile_{userId}");
 
         return Ok(new { message = "User deleted successfully" });
     }

@@ -165,6 +165,9 @@ public class AuthController : ControllerBase
                 return BadRequest(new { message = "Invalid or expired OTP" });
             }
 
+            // Invalidate user profile cache
+            await _cacheService.RemoveAsync($"user_profile_{user.Id}");
+
             // Generate tokens
             var accessToken = _jwtTokenService.GenerateAccessToken(user);
             var refreshTokenValue = _jwtTokenService.GenerateRefreshToken();
@@ -394,6 +397,9 @@ public class AuthController : ControllerBase
             // Update last login
             await _authRepository.UpdateLastLoginAsync(user.Id);
 
+            // Invalidate user profile cache to reflect new lastLoginAt
+            await _cacheService.RemoveAsync($"user_profile_{user.Id}");
+
             // Audit log
             await _authRepository.LogAuditEventAsync(new AuditLog
             {
@@ -571,6 +577,9 @@ public class AuthController : ControllerBase
             var newPasswordHash = _passwordHasher.HashPassword(request.NewPassword);
             await _authRepository.UpdatePasswordAsync(user.Id, newPasswordHash);
 
+            // Invalidate user profile cache
+            await _cacheService.RemoveAsync($"user_profile_{user.Id}");
+
             // Audit log
             await _authRepository.LogAuditEventAsync(new AuditLog
             {
@@ -678,13 +687,19 @@ public class AuthController : ControllerBase
 
             return Ok(new
             {
-                userId = user.Id,
-                email = user.Email,
-                firstName = user.FirstName,
-                lastName = user.LastName,
-                role = user.Role,
-                createdAt = user.CreatedAt,
-                lastLoginAt = user.LastLoginAt
+                user.Id,
+                user.Email,
+                user.FirstName,
+                user.LastName,
+                user.Role,
+                user.Phone,
+                user.Country,
+                user.ProfileImage,
+                user.Language,
+                user.Status,
+                user.IsEmailVerified,
+                user.CreatedAt,
+                user.LastLoginAt
             });
         }
         catch (Exception ex)

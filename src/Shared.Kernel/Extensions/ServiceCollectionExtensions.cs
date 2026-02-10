@@ -18,6 +18,12 @@ public static class ServiceCollectionExtensions
         
         services.AddSingleton<IConnectionMultiplexer>(sp => 
             ConnectionMultiplexer.Connect(redisConnection));
+
+        services.AddStackExchangeRedisCache(options =>
+        {
+            options.Configuration = redisConnection;
+            options.InstanceName = "ERP_";
+        });
             
         services.AddScoped<ICacheService, RedisCacheService>();
         
@@ -25,10 +31,17 @@ public static class ServiceCollectionExtensions
     }
     public static IServiceCollection AddRedisRateLimiting(this IServiceCollection services)
     {
+        // Add basic rate limiting services
+        services.AddMemoryCache();
+        
         // This tells the AspNetCoreRateLimit library to use Redis instead of Memory
         services.AddSingleton<IRateLimitCounterStore, DistributedCacheRateLimitCounterStore>();
         services.AddSingleton<IIpPolicyStore, DistributedCacheIpPolicyStore>();
         services.AddSingleton<IClientPolicyStore, DistributedCacheClientPolicyStore>();
+
+        // For distributed rate limiting with Redis, use RedisProcessingStrategy
+        services.AddSingleton<IProcessingStrategy, RedisProcessingStrategy>();
+        services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
         return services;
     }

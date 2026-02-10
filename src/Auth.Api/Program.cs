@@ -83,20 +83,11 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 
 // Configure Rate Limiting (Distributed via Redis)
-builder.Services.AddMemoryCache(); 
 builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
 
-// Add standard rate limiting services
-builder.Services.AddInMemoryRateLimiting(); 
-
-// Add Redis Infrastructure
+// Add Redis Infrastructure & Rate Limiting
 builder.Services.AddRedisCache(builder.Configuration);
-
-// Override standard stores with Redis versions
 builder.Services.AddRedisRateLimiting();
-
-// Configuration logic
-builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
 // Configure CORS
 builder.Services.AddCors(options =>
@@ -142,9 +133,6 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// Add Redis
-builder.Services.AddRedisCache(builder.Configuration);
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -152,9 +140,9 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseCors("AllowAll");
+app.UseIpRateLimiting();
 app.UseSecurityHeaders();
 app.UseTokenBlacklist();
-app.UseIpRateLimiting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseHttpMetrics();

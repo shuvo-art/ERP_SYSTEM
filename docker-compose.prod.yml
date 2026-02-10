@@ -66,6 +66,8 @@ services:
         condition: service_healthy
       db-init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     networks:
       - erp_network
 
@@ -260,8 +262,24 @@ services:
     image: redis:alpine
     container_name: erp_redis_prod
     restart: always
+    command: [ "redis-server", "--appendonly", "yes" ]
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     networks:
       - erp_network
+    volumes:
+      - redis_data:/data
 
   # Nginx Gateway (Custom baked image)
   nginx:
@@ -301,3 +319,4 @@ networks:
 
 volumes:
   mssql_data:
+  redis_data:
