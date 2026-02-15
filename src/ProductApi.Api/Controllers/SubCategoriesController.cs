@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProductApi.Core.Entities;
 using ProductApi.Core.Interfaces;
+using ProductApi.Core.DTOs;
+using ProductApi.Core.Helpers;
 
 namespace ProductApi.Api.Controllers;
 
@@ -17,12 +19,19 @@ public class SubCategoriesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll() => Ok(await _repository.GetSubCategoriesAsync());
+    public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] int? id, [FromQuery] string? slug) 
+        => Ok(await _repository.GetSubCategoriesAsync(search, id, slug));
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Create([FromBody] SubCategoryMaster subCategory)
+    public async Task<IActionResult> Create([FromBody] SubCategoryRequest request)
     {
+        var subCategory = new SubCategoryMaster 
+        { 
+            CategoryId = request.CategoryId, 
+            Name = request.Name,
+            Slug = SlugHelper.Generate(request.Name)
+        };
         var id = await _repository.CreateSubCategoryAsync(subCategory);
         subCategory.Id = id;
         return CreatedAtAction(nameof(GetAll), new { id = subCategory.Id }, subCategory);
@@ -30,9 +39,15 @@ public class SubCategoriesController : ControllerBase
 
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Update(int id, [FromBody] SubCategoryMaster subCategory)
+    public async Task<IActionResult> Update(int id, [FromBody] SubCategoryRequest request)
     {
-        subCategory.Id = id;
+        var subCategory = new SubCategoryMaster 
+        { 
+            Id = id, 
+            CategoryId = request.CategoryId, 
+            Name = request.Name,
+            Slug = SlugHelper.Generate(request.Name)
+        };
         var success = await _repository.UpdateSubCategoryAsync(subCategory);
         return success ? Ok(subCategory) : BadRequest();
     }

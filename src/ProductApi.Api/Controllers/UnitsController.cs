@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProductApi.Core.Entities;
 using ProductApi.Core.Interfaces;
+using ProductApi.Core.DTOs;
 
 namespace ProductApi.Api.Controllers;
 
@@ -17,12 +18,14 @@ public class UnitsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll() => Ok(await _repository.GetUnitsAsync());
+    public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] int? id) 
+        => Ok(await _repository.GetUnitsAsync(search, id));
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Create([FromBody] UnitMaster unit)
+    public async Task<IActionResult> Create([FromBody] UnitRequest request)
     {
+        var unit = new UnitMaster { Name = request.Name };
         var id = await _repository.CreateUnitAsync(unit);
         unit.Id = id;
         return CreatedAtAction(nameof(GetAll), new { id = unit.Id }, unit);
@@ -30,9 +33,9 @@ public class UnitsController : ControllerBase
 
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Update(int id, [FromBody] UnitMaster unit)
+    public async Task<IActionResult> Update(int id, [FromBody] UnitRequest request)
     {
-        unit.Id = id;
+        var unit = new UnitMaster { Id = id, Name = request.Name };
         var success = await _repository.UpdateUnitAsync(unit);
         return success ? Ok(unit) : BadRequest();
     }

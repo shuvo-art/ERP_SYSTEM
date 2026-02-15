@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProductApi.Core.Entities;
 using ProductApi.Core.Interfaces;
+using ProductApi.Core.DTOs;
+using ProductApi.Core.Helpers;
 
 namespace ProductApi.Api.Controllers;
 
@@ -19,15 +21,20 @@ public class CategoriesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll() => Ok(await _repository.GetCategoriesAsync());
+    public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] int? id, [FromQuery] string? slug) 
+        => Ok(await _repository.GetCategoriesAsync(search, id, slug));
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> Create([FromForm] string name, [FromForm] IFormFile? image)
+    public async Task<IActionResult> Create([FromForm] CategoryRequest request)
     {
-        var category = new CategoryMaster { Name = name };
-        if (image != null) category.Image = await _cloudinary.UploadImageAsync(image, "categories");
+        var category = new CategoryMaster 
+        { 
+            Name = request.Name,
+            Slug = SlugHelper.Generate(request.Name)
+        };
+        if (request.Image != null) category.Image = await _cloudinary.UploadImageAsync(request.Image, "categories");
         var id = await _repository.CreateCategoryAsync(category);
         category.Id = id;
         return CreatedAtAction(nameof(GetAll), new { id = category.Id }, category);
@@ -36,10 +43,15 @@ public class CategoriesController : ControllerBase
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> Update(int id, [FromForm] string name, [FromForm] IFormFile? image)
+    public async Task<IActionResult> Update(int id, [FromForm] CategoryRequest request)
     {
-        var category = new CategoryMaster { Id = id, Name = name };
-        if (image != null) category.Image = await _cloudinary.UploadImageAsync(image, "categories");
+        var category = new CategoryMaster 
+        { 
+            Id = id, 
+            Name = request.Name,
+            Slug = SlugHelper.Generate(request.Name)
+        };
+        if (request.Image != null) category.Image = await _cloudinary.UploadImageAsync(request.Image, "categories");
         var success = await _repository.UpdateCategoryAsync(category);
         return success ? Ok(category) : BadRequest();
     }

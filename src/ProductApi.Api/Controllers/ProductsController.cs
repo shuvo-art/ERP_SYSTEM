@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using ProductApi.Core.Entities;
 using ProductApi.Core.Interfaces;
 using ProductApi.Core.DTOs;
+using ProductApi.Core.Helpers;
 using System.Text.Json;
 
 namespace ProductApi.Api.Controllers;
@@ -49,10 +50,21 @@ public class ProductsController : ControllerBase
         }
     }
 
-    [HttpGet("{id}")]
+    [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
         var product = await _productRepository.GetProductByIdAsync(id);
+        if (product == null) return NotFound();
+        return Ok(product);
+    }
+
+    /// <summary>
+    /// Get product by Slug (Industry standard for SEO URLs)
+    /// </summary>
+    [HttpGet("slug/{slug}")]
+    public async Task<IActionResult> GetBySlug(string slug)
+    {
+        var product = await _productRepository.GetProductBySlugAsync(slug);
         if (product == null) return NotFound();
         return Ok(product);
     }
@@ -71,6 +83,7 @@ public class ProductsController : ControllerBase
             var product = new Product
             {
                 Name = request.Name,
+                Slug = SlugHelper.Generate(request.Name),
                 ShortDescription = request.ShortDescription,
                 CategoryId = request.CategoryId,
                 SubCategoryId = request.SubCategoryId,
@@ -137,6 +150,7 @@ public class ProductsController : ControllerBase
             if (existingProduct == null) return NotFound();
 
             existingProduct.Name = request.Name;
+            existingProduct.Slug = SlugHelper.Generate(request.Name);
             existingProduct.ShortDescription = request.ShortDescription;
             existingProduct.CategoryId = request.CategoryId;
             existingProduct.SubCategoryId = request.SubCategoryId;
@@ -160,7 +174,7 @@ public class ProductsController : ControllerBase
                 existingProduct.MainImage = await _cloudinaryService.UploadImageAsync(request.MainImageFile, "products/main");
             }
 
-            // Update Related Images (For simplicity, we append or replace. Let's append new ones)
+            // Update Related Images
             if (request.RelatedImageFiles != null)
             {
                 foreach (var file in request.RelatedImageFiles)

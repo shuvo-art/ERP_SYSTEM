@@ -53,6 +53,20 @@ public class ProductRepository : IProductRepository
         return product;
     }
 
+    public async Task<Product?> GetProductBySlugAsync(string slug)
+    {
+        using var connection = await CreateConnectionAsync();
+        using var multi = await connection.QueryMultipleAsync("sp_GetProductById", new { Slug = slug }, commandType: CommandType.StoredProcedure);
+
+        var productData = await multi.ReadSingleOrDefaultAsync<dynamic>();
+        if (productData == null) return null;
+
+        var product = MapFromDynamic(productData);
+        product.RelatedImages = (await multi.ReadAsync<string>()).ToList();
+
+        return product;
+    }
+
     public async Task<(IEnumerable<Product> Products, int TotalCount)> GetAllProductsAsync(int? categoryId, int? brandId, string? searchTerm, int pageNumber, int pageSize)
     {
         using var connection = await CreateConnectionAsync();
@@ -89,6 +103,7 @@ public class ProductRepository : IProductRepository
     {
         var parameters = new DynamicParameters();
         parameters.Add("@Name", product.Name);
+        parameters.Add("@Slug", product.Slug);
         parameters.Add("@ShortDescription", product.ShortDescription);
         parameters.Add("@MainImage", product.MainImage);
         
@@ -118,6 +133,7 @@ public class ProductRepository : IProductRepository
         {
             Id = d.Id,
             Name = d.Name,
+            Slug = d.Slug,
             ShortDescription = d.ShortDescription,
             MainImage = d.MainImage,
             CategoryId = d.CategoryId,

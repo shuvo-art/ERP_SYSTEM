@@ -8,6 +8,7 @@ BEGIN
     CREATE TABLE CategoryMaster (
         Id INT PRIMARY KEY IDENTITY(1,1),
         Name NVARCHAR(255) NOT NULL UNIQUE,
+        Slug NVARCHAR(255) NOT NULL UNIQUE,
         Image NVARCHAR(500) NULL,
         CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
     );
@@ -19,6 +20,7 @@ BEGIN
         Id INT PRIMARY KEY IDENTITY(1,1),
         CategoryId INT NOT NULL FOREIGN KEY REFERENCES CategoryMaster(Id) ON DELETE CASCADE,
         Name NVARCHAR(255) NOT NULL,
+        Slug NVARCHAR(255) NOT NULL,
         CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
     );
 END
@@ -28,6 +30,7 @@ BEGIN
     CREATE TABLE BrandMaster (
         Id INT PRIMARY KEY IDENTITY(1,1),
         Name NVARCHAR(255) NOT NULL,
+        Slug NVARCHAR(255) NOT NULL,
         Logo NVARCHAR(500) NULL,
         CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
     );
@@ -55,6 +58,7 @@ BEGIN
     CREATE TABLE Products (
         Id INT PRIMARY KEY IDENTITY(1,1),
         Name NVARCHAR(500) NOT NULL,
+        Slug NVARCHAR(500) NOT NULL UNIQUE,
         ShortDescription NVARCHAR(MAX) NULL,
         MainImage NVARCHAR(500) NULL,
         
@@ -81,6 +85,7 @@ BEGIN
         UpdatedAt DATETIME2 NULL
     );
     CREATE INDEX IX_Products_Name ON Products(Name);
+    CREATE INDEX IX_Products_Slug ON Products(Slug);
 END
 GO
 
@@ -98,11 +103,120 @@ GO
 -- Stored Procedures
 -- ============================================
 
--- Master Data Procedures remains same as before... (already defined in previous step)
+-- Master Data Procedures
+CREATE OR ALTER PROCEDURE sp_ManageCategory
+    @Action NVARCHAR(20), 
+    @Id INT = NULL, 
+    @Name NVARCHAR(255) = NULL, 
+    @Slug NVARCHAR(255) = NULL,
+    @Image NVARCHAR(500) = NULL,
+    @SearchTerm NVARCHAR(100) = NULL
+AS
+BEGIN
+    IF @Action = 'CREATE' 
+    BEGIN
+        INSERT INTO CategoryMaster (Name, Slug, Image) VALUES (@Name, @Slug, @Image);
+        SELECT CAST(SCOPE_IDENTITY() as int);
+    END
+    ELSE IF @Action = 'UPDATE' UPDATE CategoryMaster SET Name = @Name, Slug = @Slug, Image = @Image WHERE Id = @Id;
+    ELSE IF @Action = 'DELETE' DELETE FROM CategoryMaster WHERE Id = @Id;
+    ELSE IF @Action = 'GET' 
+        SELECT * FROM CategoryMaster 
+        WHERE (@Id IS NULL OR Id = @Id)
+          AND (@SearchTerm IS NULL OR Name LIKE '%' + @SearchTerm + '%')
+          AND (@Slug IS NULL OR Slug = @Slug);
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_ManageSubCategory
+    @Action NVARCHAR(20), 
+    @Id INT = NULL, 
+    @CategoryId INT = NULL, 
+    @Name NVARCHAR(255) = NULL, 
+    @Slug NVARCHAR(255) = NULL,
+    @SearchTerm NVARCHAR(100) = NULL
+AS
+BEGIN
+    IF @Action = 'CREATE'
+    BEGIN
+        INSERT INTO SubCategoryMaster (CategoryId, Name, Slug) VALUES (@CategoryId, @Name, @Slug);
+        SELECT CAST(SCOPE_IDENTITY() as int);
+    END
+    ELSE IF @Action = 'UPDATE' UPDATE SubCategoryMaster SET CategoryId = @CategoryId, Name = @Name, Slug = @Slug WHERE Id = @Id;
+    ELSE IF @Action = 'DELETE' DELETE FROM SubCategoryMaster WHERE Id = @Id;
+    ELSE IF @Action = 'GET' 
+        SELECT s.*, c.Name AS CategoryName FROM SubCategoryMaster s 
+        JOIN CategoryMaster c ON s.CategoryId = c.Id
+        WHERE (@Id IS NULL OR s.Id = @Id)
+          AND (@SearchTerm IS NULL OR s.Name LIKE '%' + @SearchTerm + '%')
+          AND (@Slug IS NULL OR s.Slug = @Slug);
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_ManageBrand
+    @Action NVARCHAR(20), 
+    @Id INT = NULL, 
+    @Name NVARCHAR(255) = NULL, 
+    @Slug NVARCHAR(255) = NULL,
+    @Logo NVARCHAR(500) = NULL,
+    @SearchTerm NVARCHAR(100) = NULL
+AS
+BEGIN
+    IF @Action = 'CREATE'
+    BEGIN
+        INSERT INTO BrandMaster (Name, Slug, Logo) VALUES (@Name, @Slug, @Logo);
+        SELECT CAST(SCOPE_IDENTITY() as int);
+    END
+    ELSE IF @Action = 'UPDATE' UPDATE BrandMaster SET Name = @Name, Slug = @Slug, Logo = @Logo WHERE Id = @Id;
+    ELSE IF @Action = 'DELETE' DELETE FROM BrandMaster WHERE Id = @Id;
+    ELSE IF @Action = 'GET' 
+        SELECT * FROM BrandMaster 
+        WHERE (@Id IS NULL OR Id = @Id)
+          AND (@SearchTerm IS NULL OR Name LIKE '%' + @SearchTerm + '%')
+          AND (@Slug IS NULL OR Slug = @Slug);
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_ManageUnit
+    @Action NVARCHAR(20), @Id INT = NULL, @Name NVARCHAR(50) = NULL, @SearchTerm NVARCHAR(100) = NULL
+AS
+BEGIN
+    IF @Action = 'CREATE' 
+    BEGIN
+        INSERT INTO UnitMaster (Name) VALUES (@Name);
+        SELECT CAST(SCOPE_IDENTITY() as int);
+    END
+    ELSE IF @Action = 'UPDATE' UPDATE UnitMaster SET Name = @Name WHERE Id = @Id;
+    ELSE IF @Action = 'DELETE' DELETE FROM UnitMaster WHERE Id = @Id;
+    ELSE IF @Action = 'GET' 
+        SELECT * FROM UnitMaster 
+        WHERE (@Id IS NULL OR Id = @Id)
+          AND (@SearchTerm IS NULL OR Name LIKE '%' + @SearchTerm + '%');
+END
+GO
+
+CREATE OR ALTER PROCEDURE sp_ManageCountry
+    @Action NVARCHAR(20), @Id INT = NULL, @Name NVARCHAR(255) = NULL, @SearchTerm NVARCHAR(100) = NULL
+AS
+BEGIN
+    IF @Action = 'CREATE' 
+    BEGIN
+        INSERT INTO CountryMaster (Name) VALUES (@Name);
+        SELECT CAST(SCOPE_IDENTITY() as int);
+    END
+    ELSE IF @Action = 'UPDATE' UPDATE CountryMaster SET Name = @Name WHERE Id = @Id;
+    ELSE IF @Action = 'DELETE' DELETE FROM CountryMaster WHERE Id = @Id;
+    ELSE IF @Action = 'GET' 
+        SELECT * FROM CountryMaster 
+        WHERE (@Id IS NULL OR Id = @Id)
+          AND (@SearchTerm IS NULL OR Name LIKE '%' + @SearchTerm + '%');
+END
+GO
 
 -- Product Procedures
 CREATE OR ALTER PROCEDURE sp_CreateProduct
     @Name NVARCHAR(500),
+    @Slug NVARCHAR(500),
     @ShortDescription NVARCHAR(MAX),
     @MainImage NVARCHAR(500),
     @CategoryId INT,
@@ -125,12 +239,12 @@ BEGIN
     SET XACT_ABORT ON;
     BEGIN TRANSACTION;
     INSERT INTO Products (
-        Name, ShortDescription, MainImage, CategoryId, SubCategoryId, BrandId, UnitId, CountryId,
+        Name, Slug, ShortDescription, MainImage, CategoryId, SubCategoryId, BrandId, UnitId, CountryId,
         OverviewHtml, AdvantageHtml, ApplicationRangeHtml, PrecautionHtml,
         SpecificationsJson, TechnicalDataSheetsJson, SafetyDataSheetsJson, CertificatesJson
     )
     VALUES (
-        @Name, @ShortDescription, @MainImage, @CategoryId, @SubCategoryId, @BrandId, @UnitId, @CountryId,
+        @Name, @Slug, @ShortDescription, @MainImage, @CategoryId, @SubCategoryId, @BrandId, @UnitId, @CountryId,
         @OverviewHtml, @AdvantageHtml, @ApplicationRangeHtml, @PrecautionHtml,
         @SpecificationsJson, @TechnicalDataSheetsJson, @SafetyDataSheetsJson, @CertificatesJson
     );
@@ -144,6 +258,7 @@ GO
 CREATE OR ALTER PROCEDURE sp_UpdateProduct
     @Id INT,
     @Name NVARCHAR(500),
+    @Slug NVARCHAR(500),
     @ShortDescription NVARCHAR(MAX),
     @MainImage NVARCHAR(500),
     @CategoryId INT,
@@ -166,7 +281,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM Products WHERE Id = @Id) THROW 50001, 'Product not found', 1;
     BEGIN TRANSACTION;
     UPDATE Products SET 
-        Name = @Name, ShortDescription = @ShortDescription, MainImage = @MainImage,
+        Name = @Name, Slug = @Slug, ShortDescription = @ShortDescription, MainImage = @MainImage,
         CategoryId = @CategoryId, SubCategoryId = @SubCategoryId, BrandId = @BrandId, UnitId = @UnitId, CountryId = @CountryId,
         OverviewHtml = @OverviewHtml, AdvantageHtml = @AdvantageHtml, ApplicationRangeHtml = @ApplicationRangeHtml, PrecautionHtml = @PrecautionHtml,
         SpecificationsJson = @SpecificationsJson, TechnicalDataSheetsJson = @TechnicalDataSheetsJson, SafetyDataSheetsJson = @SafetyDataSheetsJson, CertificatesJson = @CertificatesJson,
@@ -180,7 +295,8 @@ END
 GO
 
 CREATE OR ALTER PROCEDURE sp_GetProductById
-    @Id INT
+    @Id INT = NULL,
+    @Slug NVARCHAR(500) = NULL
 AS
 BEGIN
     SELECT p.*, 
@@ -195,9 +311,14 @@ BEGIN
     LEFT JOIN BrandMaster b ON p.BrandId = b.Id
     LEFT JOIN UnitMaster u ON p.UnitId = u.Id
     LEFT JOIN CountryMaster co ON p.CountryId = co.Id
-    WHERE p.Id = @Id;
+    WHERE (@Id IS NULL OR p.Id = @Id)
+      AND (@Slug IS NULL OR p.Slug = @Slug);
 
-    SELECT ImageUrl FROM ProductRelatedImages WHERE ProductId = @Id;
+    DECLARE @ActualId INT;
+    IF @Id IS NOT NULL SET @ActualId = @Id;
+    ELSE SELECT @ActualId = Id FROM Products WHERE Slug = @Slug;
+
+    SELECT ImageUrl FROM ProductRelatedImages WHERE ProductId = @ActualId;
 END
 GO
 

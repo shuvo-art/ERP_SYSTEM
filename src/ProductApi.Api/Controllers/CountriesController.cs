@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProductApi.Core.Entities;
 using ProductApi.Core.Interfaces;
+using ProductApi.Core.DTOs;
 
 namespace ProductApi.Api.Controllers;
 
@@ -17,12 +18,14 @@ public class CountriesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll() => Ok(await _repository.GetCountriesAsync());
+    public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] int? id) 
+        => Ok(await _repository.GetCountriesAsync(search, id));
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Create([FromBody] CountryMaster country)
+    public async Task<IActionResult> Create([FromBody] CountryRequest request)
     {
+        var country = new CountryMaster { Name = request.Name };
         var id = await _repository.CreateCountryAsync(country);
         country.Id = id;
         return CreatedAtAction(nameof(GetAll), new { id = country.Id }, country);
@@ -30,9 +33,9 @@ public class CountriesController : ControllerBase
 
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Update(int id, [FromBody] CountryMaster country)
+    public async Task<IActionResult> Update(int id, [FromBody] CountryRequest request)
     {
-        country.Id = id;
+        var country = new CountryMaster { Id = id, Name = request.Name };
         var success = await _repository.UpdateCountryAsync(country);
         return success ? Ok(country) : BadRequest();
     }

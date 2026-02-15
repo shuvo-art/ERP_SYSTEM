@@ -6,6 +6,7 @@ public class Product
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string Slug { get; set; } = string.Empty;
     public string? ShortDescription { get; set; }
     public string? MainImage { get; set; }
     
