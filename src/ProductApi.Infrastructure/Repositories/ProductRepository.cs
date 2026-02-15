@@ -17,9 +17,11 @@ public class ProductRepository : IProductRepository
         _connectionString = connectionString;
     }
 
+    private async Task<IDbConnection> CreateConnectionAsync() => new SqlConnection(_connectionString);
+
     public async Task<int> CreateProductAsync(Product product)
     {
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = await CreateConnectionAsync();
         var parameters = GetParameterMap(product);
         parameters.Add("@NewProductId", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
@@ -29,7 +31,7 @@ public class ProductRepository : IProductRepository
 
     public async Task<bool> UpdateProductAsync(Product product)
     {
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = await CreateConnectionAsync();
         var parameters = GetParameterMap(product);
         parameters.Add("@Id", product.Id);
         
@@ -39,7 +41,7 @@ public class ProductRepository : IProductRepository
 
     public async Task<Product?> GetProductByIdAsync(int id)
     {
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = await CreateConnectionAsync();
         using var multi = await connection.QueryMultipleAsync("sp_GetProductById", new { Id = id }, commandType: CommandType.StoredProcedure);
 
         var productData = await multi.ReadSingleOrDefaultAsync<dynamic>();
@@ -51,22 +53,34 @@ public class ProductRepository : IProductRepository
         return product;
     }
 
-    public async Task<IEnumerable<Product>> GetAllProductsAsync()
+    public async Task<(IEnumerable<Product> Products, int TotalCount)> GetAllProductsAsync(int? categoryId, int? brandId, string? searchTerm, int pageNumber, int pageSize)
     {
-        using var connection = new SqlConnection(_connectionString);
-        var productsData = await connection.QueryAsync<dynamic>("sp_GetAllProducts", commandType: CommandType.StoredProcedure);
+        using var connection = await CreateConnectionAsync();
+        var parameters = new { 
+            CategoryId = categoryId, 
+            BrandId = brandId, 
+            SearchTerm = searchTerm, 
+            PageNumber = pageNumber, 
+            PageSize = pageSize 
+        };
+
+        var productsData = await connection.QueryAsync<dynamic>("sp_GetAllProducts", parameters, commandType: CommandType.StoredProcedure);
         
         var products = new List<Product>();
+        int totalCount = 0;
+
         foreach (var d in productsData)
         {
+            if (totalCount == 0) totalCount = d.TotalCount;
             products.Add(MapFromDynamic(d));
         }
-        return products;
+
+        return (products, totalCount);
     }
 
     public async Task<bool> DeleteProductAsync(int id)
     {
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = await CreateConnectionAsync();
         var rows = await connection.ExecuteAsync("sp_DeleteProduct", new { Id = id }, commandType: CommandType.StoredProcedure);
         return rows > 0;
     }
@@ -75,17 +89,24 @@ public class ProductRepository : IProductRepository
     {
         var parameters = new DynamicParameters();
         parameters.Add("@Name", product.Name);
-        parameters.Add("@Description", product.Description);
-        parameters.Add("@MainImage", product.Image);
-        parameters.Add("@Category", product.Category);
-        parameters.Add("@SubCategory", product.SubCategory);
-        parameters.Add("@Brand", product.Brand);
-        parameters.Add("@ApplicationRange", product.ApplicationRange);
+        parameters.Add("@ShortDescription", product.ShortDescription);
+        parameters.Add("@MainImage", product.MainImage);
         
-        parameters.Add("@OverviewJson", JsonSerializer.Serialize(product.Overview));
-        parameters.Add("@AdvantagesJson", JsonSerializer.Serialize(product.Advantages));
-        parameters.Add("@PrecautionsJson", JsonSerializer.Serialize(product.Precautions));
-        parameters.Add("@DocumentsJson", JsonSerializer.Serialize(product.Documents));
+        parameters.Add("@CategoryId", product.CategoryId);
+        parameters.Add("@SubCategoryId", product.SubCategoryId);
+        parameters.Add("@BrandId", product.BrandId);
+        parameters.Add("@UnitId", product.UnitId);
+        parameters.Add("@CountryId", product.CountryId);
+
+        parameters.Add("@OverviewHtml", product.OverviewHtml);
+        parameters.Add("@AdvantageHtml", product.AdvantageHtml);
+        parameters.Add("@ApplicationRangeHtml", product.ApplicationRangeHtml);
+        parameters.Add("@PrecautionHtml", product.PrecautionHtml);
+        
+        parameters.Add("@SpecificationsJson", JsonSerializer.Serialize(product.Specifications));
+        parameters.Add("@TechnicalDataSheetsJson", JsonSerializer.Serialize(product.TechnicalDataSheets));
+        parameters.Add("@SafetyDataSheetsJson", JsonSerializer.Serialize(product.SafetyDataSheets));
+        parameters.Add("@CertificatesJson", JsonSerializer.Serialize(product.Certificates));
         parameters.Add("@RelatedImagesJson", JsonSerializer.Serialize(product.RelatedImages));
         
         return parameters;
@@ -97,27 +118,37 @@ public class ProductRepository : IProductRepository
         {
             Id = d.Id,
             Name = d.Name,
-            Description = d.Description,
-            Image = d.Image,
-            Category = d.Category,
-            SubCategory = d.SubCategory,
-            Brand = d.Brand,
-            ApplicationRange = d.ApplicationRange,
+            ShortDescription = d.ShortDescription,
+            MainImage = d.MainImage,
+            CategoryId = d.CategoryId,
+            SubCategoryId = d.SubCategoryId,
+            BrandId = d.BrandId,
+            UnitId = d.UnitId,
+            CountryId = d.CountryId,
+            CategoryName = d.CategoryName,
+            SubCategoryName = d.SubCategoryName,
+            BrandName = d.BrandName,
+            UnitName = d.UnitName,
+            CountryName = d.CountryName,
+            OverviewHtml = d.OverviewHtml,
+            AdvantageHtml = d.AdvantageHtml,
+            ApplicationRangeHtml = d.ApplicationRangeHtml,
+            PrecautionHtml = d.PrecautionHtml,
             CreatedAt = d.CreatedAt,
             UpdatedAt = d.UpdatedAt
         };
 
-        if (d.OverviewJson != null)
-            product.Overview = JsonSerializer.Deserialize<Overview>((string)d.OverviewJson, _jsonOptions) ?? new();
+        if (d.SpecificationsJson != null)
+            product.Specifications = JsonSerializer.Deserialize<ProductSpecifications>((string)d.SpecificationsJson, _jsonOptions) ?? new();
         
-        if (d.AdvantagesJson != null)
-            product.Advantages = JsonSerializer.Deserialize<List<string>>((string)d.AdvantagesJson, _jsonOptions) ?? new();
+        if (d.TechnicalDataSheetsJson != null)
+            product.TechnicalDataSheets = JsonSerializer.Deserialize<List<ProductDocument>>((string)d.TechnicalDataSheetsJson, _jsonOptions) ?? new();
 
-        if (d.PrecautionsJson != null)
-            product.Precautions = JsonSerializer.Deserialize<List<string>>((string)d.PrecautionsJson, _jsonOptions) ?? new();
+        if (d.SafetyDataSheetsJson != null)
+            product.SafetyDataSheets = JsonSerializer.Deserialize<List<ProductDocument>>((string)d.SafetyDataSheetsJson, _jsonOptions) ?? new();
 
-        if (d.DocumentsJson != null)
-            product.Documents = JsonSerializer.Deserialize<Dictionary<string, List<string>>>((string)d.DocumentsJson, _jsonOptions) ?? new();
+        if (d.CertificatesJson != null)
+            product.Certificates = JsonSerializer.Deserialize<List<ProductDocument>>((string)d.CertificatesJson, _jsonOptions) ?? new();
 
         return product;
     }

@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
-using System.Collections.Generic;
 
 namespace ProductApi.Core.DTOs;
 
@@ -8,30 +7,29 @@ public class ProductRequest
 {
     [Required]
     public string Name { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    
-    public IFormFile? ImageFile { get; set; }
-    public List<IFormFile>? RelatedImageFiles { get; set; }
-    
-    public string? Category { get; set; }
-    public string? SubCategory { get; set; }
-    public string? Brand { get; set; }
-    public string? ApplicationRange { get; set; }
+    public string? ShortDescription { get; set; }
 
-    public string? OverviewDetails { get; set; }
-    
-    // JSON string for specifications: "[{\"title\":\"Size\", \"items\":[\"10L\"]}]"
+    // Master Data IDs
+    public int? CategoryId { get; set; }
+    public int? SubCategoryId { get; set; }
+    public int? BrandId { get; set; }
+    public int? UnitId { get; set; }
+    public int? CountryId { get; set; }
+
+    // Rich Text Contents
+    public string? OverviewHtml { get; set; }
+    public string? AdvantageHtml { get; set; }
+    public string? ApplicationRangeHtml { get; set; }
+    public string? PrecautionHtml { get; set; }
+
+    // Structured Specs (JSON Strings from Frontend)
     public string? SpecificationsJson { get; set; }
 
-    // Or send the entire overview as one JSON: "{\"details\": \"...\", \"specifications\": [...]}"
-    public string? OverviewJson { get; set; }
+    // Files
+    public IFormFile? MainImageFile { get; set; }
+    public List<IFormFile>? RelatedImageFiles { get; set; }
     
-    public List<string> Advantages { get; set; } = new();
-    public List<string> Precautions { get; set; } = new();
-
-    // Specific file lists for each document type
-    public List<IFormFile>? TechnicalDataSheetFiles { get; set; }
-    public List<IFormFile>? SafetyDataSheetFiles { get; set; }
-    public List<IFormFile>? SalesBrochureFiles { get; set; }
-    public List<IFormFile>? CompanyProfileFiles { get; set; }
+    // Document names as parallel lists or within JSON is tricky with files.
+    // Standard approach for multiple files with names in multipart:
+    // Files are usually sent with specific keys like 'TechnicalDataSheetFiles'
 }

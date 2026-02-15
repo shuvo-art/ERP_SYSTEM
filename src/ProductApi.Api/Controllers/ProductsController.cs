@@ -8,12 +8,13 @@ using System.Text.Json;
 namespace ProductApi.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/products")]
+[Route("api/v1/[controller]")]
 public class ProductsController : ControllerBase
 {
     private readonly IProductRepository _productRepository;
     private readonly ICloudinaryService _cloudinaryService;
     private readonly ILogger<ProductsController> _logger;
+    private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     public ProductsController(
         IProductRepository productRepository, 
@@ -26,107 +27,87 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
-    /// Get all products
+    /// Get all products with filtering and pagination
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int? categoryId, 
+        [FromQuery] int? brandId, 
+        [FromQuery] string? search,
+        [FromQuery] int page = 1, 
+        [FromQuery] int pageSize = 10)
     {
         try
         {
-            var products = await _productRepository.GetAllProductsAsync();
-            return Ok(products);
+            var (products, total) = await _productRepository.GetAllProductsAsync(categoryId, brandId, search, page, pageSize);
+            return Ok(new { data = products, total, page, pageSize });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting all products");
-            return StatusCode(500, new { message = "Internal server error" });
+            return StatusCode(500, new { message = "Error retrieving products" });
         }
     }
 
-    /// <summary>
-    /// Get product by id
-    /// </summary>
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        try
-        {
-            var product = await _productRepository.GetProductByIdAsync(id);
-            if (product == null) return NotFound();
-            return Ok(product);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting product {Id}", id);
-            return StatusCode(500, new { message = "Internal server error" });
-        }
+        var product = await _productRepository.GetProductByIdAsync(id);
+        if (product == null) return NotFound();
+        return Ok(product);
     }
 
-    /// <summary>
-    /// Create a new product (Admin only) - Supports multipart/form-data
-    /// </summary>
     [HttpPost]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Create([FromForm] ProductRequest request)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Create(
+        [FromForm] ProductRequest request,
+        [FromForm] List<IFormFile>? TechnicalDataSheetFiles,
+        [FromForm] List<IFormFile>? SafetyDataSheetFiles,
+        [FromForm] List<IFormFile>? CertificateFiles)
     {
         try
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
             var product = new Product
             {
                 Name = request.Name,
-                Description = request.Description,
-                Category = request.Category,
-                SubCategory = request.SubCategory,
-                Brand = request.Brand,
-                ApplicationRange = request.ApplicationRange,
-                Advantages = request.Advantages ?? new(),
-                Precautions = request.Precautions ?? new()
+                ShortDescription = request.ShortDescription,
+                CategoryId = request.CategoryId,
+                SubCategoryId = request.SubCategoryId,
+                BrandId = request.BrandId,
+                UnitId = request.UnitId,
+                CountryId = request.CountryId,
+                OverviewHtml = request.OverviewHtml,
+                AdvantageHtml = request.AdvantageHtml,
+                ApplicationRangeHtml = request.ApplicationRangeHtml,
+                PrecautionHtml = request.PrecautionHtml
             };
 
-            try 
+            // Parse Specifications
+            if (!string.IsNullOrEmpty(request.SpecificationsJson))
             {
-                // Handle Overview
-                if (!string.IsNullOrEmpty(request.OverviewJson))
-                {
-                    product.Overview = JsonSerializer.Deserialize<Overview>(
-                        request.OverviewJson, 
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-                }
-                else 
-                {
-                    product.Overview = new Overview { Details = request.OverviewDetails };
-                    if (!string.IsNullOrEmpty(request.SpecificationsJson))
-                    {
-                        product.Overview.Specifications = JsonSerializer.Deserialize<List<Specification>>(
-                            request.SpecificationsJson, 
-                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-                    }
-                }
-            }
-            catch (JsonException ex)
-            {
-                return BadRequest(new { message = "Invalid JSON format in OverviewJson or SpecificationsJson", details = ex.Message });
+                product.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions) ?? new();
             }
 
-            // Handle Image Upload
-            if (request.ImageFile != null)
+            // Upload Main Image
+            if (request.MainImageFile != null)
             {
-                product.Image = await _cloudinaryService.UploadImageAsync(request.ImageFile, "products/main");
+                product.MainImage = await _cloudinaryService.UploadImageAsync(request.MainImageFile, "products/main");
             }
 
-            // Handle Related Images
-            if (request.RelatedImageFiles != null && request.RelatedImageFiles.Any())
+            // Upload Related Images
+            if (request.RelatedImageFiles != null)
             {
                 foreach (var file in request.RelatedImageFiles)
                 {
-                    product.RelatedImages.Add(await _cloudinaryService.UploadImageAsync(file, "products/related"));
+                    product.RelatedImages.Add(await _cloudinaryService.UploadImageAsync(file, "products/gallery"));
                 }
             }
 
-            // Handle Documents
-            await MapDocumentsFromRequest(request, product);
+            // Upload Documents (TDS, SDS, Certificates)
+            product.TechnicalDataSheets = await UploadDocs(TechnicalDataSheetFiles, "products/documents/tds");
+            product.SafetyDataSheets = await UploadDocs(SafetyDataSheetFiles, "products/documents/sds");
+            product.Certificates = await UploadDocs(CertificateFiles, "products/documents/certificates");
 
             var id = await _productRepository.CreateProductAsync(product);
             product.Id = id;
@@ -136,166 +117,106 @@ public class ProductsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating product");
-            return StatusCode(500, new { message = "Internal server error" });
+            return StatusCode(500, new { message = "Error creating product", details = ex.Message });
         }
     }
 
-    /// <summary>
-    /// Update a product (Admin only) - Supports multipart/form-data
-    /// </summary>
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Update(int id, [FromForm] ProductRequest request)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Update(
+        int id, 
+        [FromForm] ProductRequest request,
+        [FromForm] List<IFormFile>? TechnicalDataSheetFiles,
+        [FromForm] List<IFormFile>? SafetyDataSheetFiles,
+        [FromForm] List<IFormFile>? CertificateFiles)
     {
         try
         {
             var existingProduct = await _productRepository.GetProductByIdAsync(id);
             if (existingProduct == null) return NotFound();
 
-            // Use existing product as the template
-            var product = existingProduct;
-            product.UpdatedAt = DateTime.UtcNow;
+            existingProduct.Name = request.Name;
+            existingProduct.ShortDescription = request.ShortDescription;
+            existingProduct.CategoryId = request.CategoryId;
+            existingProduct.SubCategoryId = request.SubCategoryId;
+            existingProduct.BrandId = request.BrandId;
+            existingProduct.UnitId = request.UnitId;
+            existingProduct.CountryId = request.CountryId;
+            existingProduct.OverviewHtml = request.OverviewHtml;
+            existingProduct.AdvantageHtml = request.AdvantageHtml;
+            existingProduct.ApplicationRangeHtml = request.ApplicationRangeHtml;
+            existingProduct.PrecautionHtml = request.PrecautionHtml;
 
-            // Only update fields if they are provided in the request
-            if (!string.IsNullOrEmpty(request.Name)) product.Name = request.Name;
-            if (!string.IsNullOrEmpty(request.Description)) product.Description = request.Description;
-            if (!string.IsNullOrEmpty(request.Category)) product.Category = request.Category;
-            if (!string.IsNullOrEmpty(request.SubCategory)) product.SubCategory = request.SubCategory;
-            if (!string.IsNullOrEmpty(request.Brand)) product.Brand = request.Brand;
-            if (!string.IsNullOrEmpty(request.ApplicationRange)) product.ApplicationRange = request.ApplicationRange;
-
-            if (request.Advantages != null && request.Advantages.Any()) product.Advantages = request.Advantages;
-            if (request.Precautions != null && request.Precautions.Any()) product.Precautions = request.Precautions;
-
-            try 
+            if (!string.IsNullOrEmpty(request.SpecificationsJson))
             {
-                // Handle Overview
-                if (!string.IsNullOrEmpty(request.OverviewJson))
-                {
-                    product.Overview = JsonSerializer.Deserialize<Overview>(
-                        request.OverviewJson, 
-                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-                }
-                else if (!string.IsNullOrEmpty(request.OverviewDetails) || !string.IsNullOrEmpty(request.SpecificationsJson))
-                {
-                    if (product.Overview == null) product.Overview = new Overview();
-                    
-                    if (!string.IsNullOrEmpty(request.OverviewDetails)) 
-                        product.Overview.Details = request.OverviewDetails;
-
-                    if (!string.IsNullOrEmpty(request.SpecificationsJson))
-                    {
-                        product.Overview.Specifications = JsonSerializer.Deserialize<List<Specification>>(
-                            request.SpecificationsJson, 
-                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-                    }
-                }
-            }
-            catch (JsonException ex)
-            {
-                return BadRequest(new { message = "Invalid JSON format in OverviewJson or SpecificationsJson", details = ex.Message });
+                existingProduct.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions) ?? new();
             }
 
-            // Handle new file uploads (only if provided and NOT empty)
-            if (request.ImageFile != null && request.ImageFile.Length > 0)
+            // Update Main Image
+            if (request.MainImageFile != null)
             {
-                await _cloudinaryService.DeleteFileAsync(existingProduct.Image ?? "");
-                product.Image = await _cloudinaryService.UploadImageAsync(request.ImageFile, "products/main");
+                if (!string.IsNullOrEmpty(existingProduct.MainImage)) await _cloudinaryService.DeleteFileAsync(existingProduct.MainImage);
+                existingProduct.MainImage = await _cloudinaryService.UploadImageAsync(request.MainImageFile, "products/main");
             }
 
-            if (request.RelatedImageFiles != null && request.RelatedImageFiles.Any(f => f.Length > 0))
+            // Update Related Images (For simplicity, we append or replace. Let's append new ones)
+            if (request.RelatedImageFiles != null)
             {
-                foreach (var img in existingProduct.RelatedImages) await _cloudinaryService.DeleteFileAsync(img);
-                product.RelatedImages = new List<string>();
-                foreach (var file in request.RelatedImageFiles.Where(f => f.Length > 0))
+                foreach (var file in request.RelatedImageFiles)
                 {
-                    product.RelatedImages.Add(await _cloudinaryService.UploadImageAsync(file, "products/related"));
+                    existingProduct.RelatedImages.Add(await _cloudinaryService.UploadImageAsync(file, "products/gallery"));
                 }
             }
 
-            // Documents replacement logic
-            if (request.TechnicalDataSheetFiles?.Any(f => f.Length > 0) == true || 
-                request.SafetyDataSheetFiles?.Any(f => f.Length > 0) == true ||
-                request.SalesBrochureFiles?.Any(f => f.Length > 0) == true ||
-                request.CompanyProfileFiles?.Any(f => f.Length > 0) == true)
-            {
-                await MapDocumentsFromRequest(request, product);
-            }
+            // Update Documents (Append)
+            if (TechnicalDataSheetFiles != null)
+                existingProduct.TechnicalDataSheets.AddRange(await UploadDocs(TechnicalDataSheetFiles, "products/documents/tds"));
+            
+            if (SafetyDataSheetFiles != null)
+                existingProduct.SafetyDataSheets.AddRange(await UploadDocs(SafetyDataSheetFiles, "products/documents/sds"));
 
-            var success = await _productRepository.UpdateProductAsync(product);
-            if (!success) return BadRequest(new { message = "Update failed" });
+            if (CertificateFiles != null)
+                existingProduct.Certificates.AddRange(await UploadDocs(CertificateFiles, "products/documents/certificates"));
 
-            return Ok(product);
+            var success = await _productRepository.UpdateProductAsync(existingProduct);
+            return success ? Ok(existingProduct) : BadRequest();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating product {Id}", id);
-            return StatusCode(500, new { message = "Internal server error" });
+            return StatusCode(500, new { message = "Error updating product" });
         }
     }
 
-    /// <summary>
-    /// Delete a product (Admin only)
-    /// </summary>
     [HttpDelete("{id}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
-        try
-        {
-            var product = await _productRepository.GetProductByIdAsync(id);
-            if (product == null) return NotFound();
+        var product = await _productRepository.GetProductByIdAsync(id);
+        if (product == null) return NotFound();
 
-            // Cleanup files from Cloudinary
-            if (!string.IsNullOrEmpty(product.Image)) await _cloudinaryService.DeleteFileAsync(product.Image);
-            foreach (var img in product.RelatedImages) await _cloudinaryService.DeleteFileAsync(img);
-            foreach (var docType in product.Documents)
-            {
-                foreach (var file in docType.Value)
-                {
-                    await _cloudinaryService.DeleteFileAsync(file);
-                }
-            }
+        // Cleanup files from Cloudinary
+        if (!string.IsNullOrEmpty(product.MainImage)) await _cloudinaryService.DeleteFileAsync(product.MainImage);
+        foreach (var img in product.RelatedImages) await _cloudinaryService.DeleteFileAsync(img);
+        foreach (var doc in product.TechnicalDataSheets) await _cloudinaryService.DeleteFileAsync(doc.Url);
+        foreach (var doc in product.SafetyDataSheets) await _cloudinaryService.DeleteFileAsync(doc.Url);
+        foreach (var doc in product.Certificates) await _cloudinaryService.DeleteFileAsync(doc.Url);
 
-            var success = await _productRepository.DeleteProductAsync(id);
-            if (!success) return NotFound();
-            return NoContent();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting product {Id}", id);
-            return StatusCode(500, new { message = "Internal server error" });
-        }
+        var success = await _productRepository.DeleteProductAsync(id);
+        return success ? NoContent() : NotFound();
     }
 
-    private async Task MapDocumentsFromRequest(ProductRequest request, Product product)
+    private async Task<List<ProductDocument>> UploadDocs(List<IFormFile>? files, string folder)
     {
-        if (request.TechnicalDataSheetFiles != null)
-        {
-            if (!product.Documents.ContainsKey("technical_data_sheet")) product.Documents["technical_data_sheet"] = new();
-            foreach (var file in request.TechnicalDataSheetFiles.Where(f => f.Length > 0))
-                product.Documents["technical_data_sheet"].Add(await _cloudinaryService.UploadFileAsync(file, "documents/technical_data_sheet"));
-        }
+        var docs = new List<ProductDocument>();
+        if (files == null) return docs;
 
-        if (request.SafetyDataSheetFiles != null)
+        foreach (var file in files)
         {
-            if (!product.Documents.ContainsKey("safety_data_sheet")) product.Documents["safety_data_sheet"] = new();
-            foreach (var file in request.SafetyDataSheetFiles.Where(f => f.Length > 0))
-                product.Documents["safety_data_sheet"].Add(await _cloudinaryService.UploadFileAsync(file, "documents/safety_data_sheet"));
+            var url = await _cloudinaryService.UploadFileAsync(file, folder);
+            docs.Add(new ProductDocument { Name = file.FileName, Url = url });
         }
-
-        if (request.SalesBrochureFiles != null)
-        {
-            if (!product.Documents.ContainsKey("sales_brochure")) product.Documents["sales_brochure"] = new();
-            foreach (var file in request.SalesBrochureFiles.Where(f => f.Length > 0))
-                product.Documents["sales_brochure"].Add(await _cloudinaryService.UploadFileAsync(file, "documents/sales_brochure"));
-        }
-
-        if (request.CompanyProfileFiles != null)
-        {
-            if (!product.Documents.ContainsKey("company_profile")) product.Documents["company_profile"] = new();
-            foreach (var file in request.CompanyProfileFiles.Where(f => f.Length > 0))
-                product.Documents["company_profile"].Add(await _cloudinaryService.UploadFileAsync(file, "documents/company_profile"));
-        }
+        return docs;
     }
 }
