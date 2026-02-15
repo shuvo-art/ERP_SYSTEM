@@ -62,6 +62,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 // Register services
 builder.Services.AddScoped<IProductRepository>(sp => new ProductRepository(connectionString!));
+builder.Services.AddScoped<IMasterDataRepository>(sp => new MasterDataRepository(connectionString!));
 builder.Services.AddScoped<ICloudinaryService, ProductApi.Infrastructure.Services.CloudinaryService>();
 
 // Configure Rate Limiting
