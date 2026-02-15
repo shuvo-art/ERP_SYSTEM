@@ -1,168 +1,151 @@
-using System.Data;
-using Dapper;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using ReferenceProjectApi.Core.Entities;
 using ReferenceProjectApi.Core.Interfaces;
-using System.Text.Json;
+using ReferenceProjectApi.Infrastructure.Data;
 
 namespace ReferenceProjectApi.Infrastructure.Repositories;
 
 public class ReferenceProjectRepository : IReferenceProjectRepository
 {
-    private readonly string _connectionString;
-    private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNameCaseInsensitive = true };
+    private readonly ReferenceProjectDbContext _context;
 
-    public ReferenceProjectRepository(IConfiguration configuration)
+    public ReferenceProjectRepository(ReferenceProjectDbContext context)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection") 
-                            ?? throw new ArgumentNullException("Connection string not found.");
+        _context = context;
     }
 
-    private IDbConnection CreateConnection() => new SqlConnection(_connectionString);
-
-    public async Task<IEnumerable<ReferenceProject>> GetProjectsAsync(int page, int limit, string? status, bool? featured, string? search)
+    public async Task<IEnumerable<ReferenceProject>> GetProjectsAsync(int page, int limit, string? status, bool? featured, string? search, int? categoryId)
     {
-        using var connection = CreateConnection();
-        var parameters = new { Page = page, Limit = limit, Status = status, Featured = featured, Search = search };
-        
-        using var multi = await connection.QueryMultipleAsync("sp_GetReferenceProjects", parameters, commandType: CommandType.StoredProcedure);
-        
-        var entities = await multi.ReadAsync<ReferenceProjectEntity>();
-        // The SP returns total count as second result set which we might use later, but for now we follow the interface.
-        
-        return entities.Select(MapToDomain);
+        var query = _context.ReferenceProjects
+            .Include(p => p.Category)
+            .Include(p => p.GalleryImages)
+            .Include(p => p.DetailImages)
+            .Include(p => p.ProjectProducts)
+                .ThenInclude(pp => pp.Product)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(status))
+            query = query.Where(p => p.Status == status);
+
+        if (featured.HasValue)
+            query = query.Where(p => p.Featured == featured.Value);
+
+        if (categoryId.HasValue)
+            query = query.Where(p => p.CategoryId == categoryId.Value);
+
+        if (!string.IsNullOrEmpty(search))
+        {
+            query = query.Where(p => 
+                p.ProjectName.Contains(search) || 
+                p.ShortDescription.Contains(search) || 
+                p.Location.Contains(search));
+        }
+
+        return await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * limit)
+            .Take(limit)
+            .ToListAsync();
     }
 
-    public async Task<int> GetTotalCountAsync(string? status, bool? featured, string? search)
+    public async Task<int> GetTotalCountAsync(string? status, bool? featured, string? search, int? categoryId)
     {
-        using var connection = CreateConnection();
-        // The sp_GetReferenceProjects already returns count, but we need a separate way if we follow current interface
-        // Or we can just call the count part of the logic.
-        // For simplicity and consistency with current IReferenceProjectRepository interface:
-        var sql = @"
-            SELECT COUNT(*) FROM ReferenceProjects
-            WHERE (@Status IS NULL OR Status = @Status)
-            AND (@Featured IS NULL OR Featured = @Featured)
-            AND (@Search IS NULL OR ProjectName LIKE '%' + @Search + '%' OR ShortDescription LIKE '%' + @Search + '%')";
-            
-        return await connection.ExecuteScalarAsync<int>(sql, new { Status = status, Featured = featured, Search = search });
+        var query = _context.ReferenceProjects.AsQueryable();
+
+        if (!string.IsNullOrEmpty(status))
+            query = query.Where(p => p.Status == status);
+
+        if (featured.HasValue)
+            query = query.Where(p => p.Featured == featured.Value);
+
+        if (categoryId.HasValue)
+            query = query.Where(p => p.CategoryId == categoryId.Value);
+
+        if (!string.IsNullOrEmpty(search))
+        {
+            query = query.Where(p => 
+                p.ProjectName.Contains(search) || 
+                p.ShortDescription.Contains(search));
+        }
+
+        return await query.CountAsync();
     }
 
     public async Task<ReferenceProject?> GetByIdAsync(int id)
     {
-        using var connection = CreateConnection();
-        var entity = await connection.QuerySingleOrDefaultAsync<ReferenceProjectEntity>(
-            "sp_GetReferenceProjectById", 
-            new { Id = id }, 
-            commandType: CommandType.StoredProcedure);
-        return entity == null ? null : MapToDomain(entity);
+        return await _context.ReferenceProjects
+            .Include(p => p.Category)
+            .Include(p => p.GalleryImages)
+            .Include(p => p.DetailImages)
+            .Include(p => p.ProjectProducts)
+                .ThenInclude(pp => pp.Product)
+            .FirstOrDefaultAsync(p => p.Id == id);
     }
 
     public async Task<ReferenceProject?> GetBySlugAsync(string slug)
     {
-        using var connection = CreateConnection();
-        var entity = await connection.QuerySingleOrDefaultAsync<ReferenceProjectEntity>(
-            "sp_GetReferenceProjectBySlug", 
-            new { Slug = slug }, 
-            commandType: CommandType.StoredProcedure);
-        return entity == null ? null : MapToDomain(entity);
+        return await _context.ReferenceProjects
+            .Include(p => p.Category)
+            .Include(p => p.GalleryImages)
+            .Include(p => p.DetailImages)
+            .Include(p => p.ProjectProducts)
+                .ThenInclude(pp => pp.Product)
+            .FirstOrDefaultAsync(p => p.Slug == slug);
     }
 
     public async Task<int> CreateAsync(ReferenceProject project)
     {
-        using var connection = CreateConnection();
-        var parameters = new DynamicParameters();
-        parameters.Add("@ProjectName", project.ProjectName);
-        parameters.Add("@Slug", project.Slug);
-        parameters.Add("@ShortDescription", project.ShortDescription);
-        parameters.Add("@HeroImageUrl", project.HeroImageUrl);
-        parameters.Add("@GalleryImagesJson", JsonSerializer.Serialize(project.GalleryImages));
-        parameters.Add("@Location", project.Location);
-        parameters.Add("@ProjectOverviewJson", JsonSerializer.Serialize(project.ProjectOverview));
-        parameters.Add("@ProductsUsedJson", JsonSerializer.Serialize(project.ProductsUsed));
-        parameters.Add("@Status", project.Status);
-        parameters.Add("@StartDate", project.StartDate);
-        parameters.Add("@CompletionDate", project.CompletionDate);
-        parameters.Add("@Featured", project.Featured);
-        parameters.Add("@NewProjectId", dbType: DbType.Int32, direction: ParameterDirection.Output);
-
-        await connection.ExecuteAsync("sp_CreateReferenceProject", parameters, commandType: CommandType.StoredProcedure);
-        return parameters.Get<int>("@NewProjectId");
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            _context.ReferenceProjects.Add(project);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return project.Id;
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     public async Task UpdateAsync(ReferenceProject project)
     {
-        using var connection = CreateConnection();
-        var parameters = new DynamicParameters();
-        parameters.Add("@Id", project.Id);
-        parameters.Add("@ProjectName", project.ProjectName);
-        parameters.Add("@Slug", project.Slug);
-        parameters.Add("@ShortDescription", project.ShortDescription);
-        parameters.Add("@HeroImageUrl", project.HeroImageUrl);
-        parameters.Add("@GalleryImagesJson", JsonSerializer.Serialize(project.GalleryImages));
-        parameters.Add("@Location", project.Location);
-        parameters.Add("@ProjectOverviewJson", JsonSerializer.Serialize(project.ProjectOverview));
-        parameters.Add("@ProductsUsedJson", JsonSerializer.Serialize(project.ProductsUsed));
-        parameters.Add("@Status", project.Status);
-        parameters.Add("@StartDate", project.StartDate);
-        parameters.Add("@CompletionDate", project.CompletionDate);
-        parameters.Add("@Featured", project.Featured);
-
-        await connection.ExecuteAsync("sp_UpdateReferenceProject", parameters, commandType: CommandType.StoredProcedure);
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            // Update basic project info
+            _context.Entry(project).State = EntityState.Modified;
+            
+            // For complex many-to-many and collections, usually we'd handle them specifically
+            // but for simplicity here we assume the passed project object is correctly tracked or we use standard update.
+            // In a real API, we often clear and re-add junction records if they change.
+            
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
     public async Task DeleteAsync(int id)
     {
-        using var connection = CreateConnection();
-        await connection.ExecuteAsync("sp_DeleteReferenceProject", new { Id = id }, commandType: CommandType.StoredProcedure);
-    }
-
-    private ReferenceProject MapToDomain(ReferenceProjectEntity entity)
-    {
-        return new ReferenceProject
+        var project = await _context.ReferenceProjects.FindAsync(id);
+        if (project != null)
         {
-            Id = entity.Id,
-            ProjectName = entity.ProjectName,
-            Slug = entity.Slug,
-            ShortDescription = entity.ShortDescription,
-            HeroImageUrl = entity.HeroImageUrl,
-            GalleryImages = string.IsNullOrEmpty(entity.GalleryImagesJson) 
-                ? new List<string>() 
-                : JsonSerializer.Deserialize<List<string>>(entity.GalleryImagesJson, _jsonOptions) ?? new(),
-            Location = entity.Location,
-            ProjectOverview = string.IsNullOrEmpty(entity.ProjectOverviewJson)
-                ? null
-                : JsonSerializer.Deserialize<ProjectOverview>(entity.ProjectOverviewJson, _jsonOptions),
-            ProductsUsed = string.IsNullOrEmpty(entity.ProductsUsedJson)
-                ? new List<ProjectProduct>()
-                : JsonSerializer.Deserialize<List<ProjectProduct>>(entity.ProductsUsedJson, _jsonOptions) ?? new(),
-            Status = entity.Status,
-            StartDate = entity.StartDate,
-            CompletionDate = entity.CompletionDate,
-            Featured = entity.Featured,
-            CreatedAt = entity.CreatedAt,
-            UpdatedAt = entity.UpdatedAt
-        };
+            _context.ReferenceProjects.Remove(project);
+            await _context.SaveChangesAsync();
+        }
     }
 
-    private class ReferenceProjectEntity
+    // Helper method to check products existence
+    public async Task<bool> ProductsExistAsync(List<int> productIds)
     {
-        public int Id { get; set; }
-        public string ProjectName { get; set; } = string.Empty;
-        public string Slug { get; set; } = string.Empty;
-        public string ShortDescription { get; set; } = string.Empty;
-        public string? HeroImageUrl { get; set; }
-        public string? GalleryImagesJson { get; set; }
-        public string Location { get; set; } = string.Empty;
-        public string? ProjectOverviewJson { get; set; }
-        public string? ProductsUsedJson { get; set; }
-        public string Status { get; set; } = string.Empty;
-        public DateTime? StartDate { get; set; }
-        public DateTime? CompletionDate { get; set; }
-        public bool Featured { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
+        var count = await _context.Products.CountAsync(p => productIds.Contains(p.Id));
+        return count == productIds.Distinct().Count();
     }
 }
-

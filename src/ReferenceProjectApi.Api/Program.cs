@@ -9,6 +9,7 @@ using FluentValidation.AspNetCore;
 using AspNetCoreRateLimit;
 using Shared.Kernel.Extensions;
 using Shared.Kernel.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +19,7 @@ builder.Services.AddEndpointsApiExplorer();
 
 // Add FluentValidation
 builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<ReferenceProjectApi.Core.Validators.ReferenceProjectRequestValidator>();
 
 // Configure Swagger
 builder.Services.AddSwaggerGen(options =>
@@ -65,8 +67,13 @@ if (string.IsNullOrEmpty(connectionString))
     throw new InvalidOperationException("DefaultConnection connection string is not configured.");
 }
 
+// Add DbContext
+builder.Services.AddDbContext<ReferenceProjectApi.Infrastructure.Data.ReferenceProjectDbContext>(options =>
+    options.UseSqlServer(connectionString));
+
 // Register services
 builder.Services.AddScoped<IReferenceProjectRepository, ReferenceProjectRepository>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ICloudinaryService, ReferenceProjectApi.Infrastructure.Services.CloudinaryService>();
 
 // Configure Rate Limiting
