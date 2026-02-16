@@ -122,9 +122,52 @@ BEGIN
     );
     CREATE INDEX IX_Products_Name ON Products(Name);
 END
-ELSE IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'Slug')
+ELSE
 BEGIN
-    ALTER TABLE Products ADD Slug NVARCHAR(500) NOT NULL DEFAULT '';
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'Slug')
+        ALTER TABLE Products ADD Slug NVARCHAR(500) NOT NULL DEFAULT '';
+    
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'ShortDescription')
+        ALTER TABLE Products ADD ShortDescription NVARCHAR(MAX) NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'CategoryId')
+        ALTER TABLE Products ADD CategoryId INT NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'SubCategoryId')
+        ALTER TABLE Products ADD SubCategoryId INT NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'BrandId')
+        ALTER TABLE Products ADD BrandId INT NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'UnitId')
+        ALTER TABLE Products ADD UnitId INT NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'CountryId')
+        ALTER TABLE Products ADD CountryId INT NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'OverviewHtml')
+        ALTER TABLE Products ADD OverviewHtml NVARCHAR(MAX) NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'AdvantageHtml')
+        ALTER TABLE Products ADD AdvantageHtml NVARCHAR(MAX) NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'ApplicationRangeHtml')
+        ALTER TABLE Products ADD ApplicationRangeHtml NVARCHAR(MAX) NULL;
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'PrecautionHtml')
+        ALTER TABLE Products ADD PrecautionHtml NVARCHAR(MAX) NULL;
+    
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'SpecificationsJson')
+        ALTER TABLE Products ADD SpecificationsJson NVARCHAR(MAX) NULL;
+        
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'TechnicalDataSheetsJson')
+        ALTER TABLE Products ADD TechnicalDataSheetsJson NVARCHAR(MAX) NULL;
+        
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'SafetyDataSheetsJson')
+        ALTER TABLE Products ADD SafetyDataSheetsJson NVARCHAR(MAX) NULL;
+        
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'CertificatesJson')
+        ALTER TABLE Products ADD CertificatesJson NVARCHAR(MAX) NULL;
 END
 GO
 

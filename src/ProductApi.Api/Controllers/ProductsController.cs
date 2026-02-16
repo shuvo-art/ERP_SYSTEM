@@ -72,14 +72,12 @@ public class ProductsController : ControllerBase
     [HttpPost]
     [Authorize(Roles = "Admin")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> Create(
-        [FromForm] ProductRequest request,
-        [FromForm] List<IFormFile>? TechnicalDataSheetFiles,
-        [FromForm] List<IFormFile>? SafetyDataSheetFiles,
-        [FromForm] List<IFormFile>? CertificateFiles)
+    public async Task<IActionResult> Create([FromForm] ProductRequest request)
     {
         try
         {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
             var product = new Product
             {
                 Name = request.Name,
@@ -117,10 +115,10 @@ public class ProductsController : ControllerBase
                 }
             }
 
-            // Upload Documents (TDS, SDS, Certificates)
-            product.TechnicalDataSheets = await UploadDocs(TechnicalDataSheetFiles, "products/documents/tds");
-            product.SafetyDataSheets = await UploadDocs(SafetyDataSheetFiles, "products/documents/sds");
-            product.Certificates = await UploadDocs(CertificateFiles, "products/documents/certificates");
+            // Upload Documents with custom names
+            product.TechnicalDataSheets = await UploadDocsWithNames(request.TechnicalDataSheetFiles, request.TechnicalDataSheetNamesJson, "products/documents/tds");
+            product.SafetyDataSheets = await UploadDocsWithNames(request.SafetyDataSheetFiles, request.SafetyDataSheetNamesJson, "products/documents/sds");
+            product.Certificates = await UploadDocsWithNames(request.CertificateFiles, request.CertificateNamesJson, "products/documents/certificates");
 
             var id = await _productRepository.CreateProductAsync(product);
             product.Id = id;
@@ -137,50 +135,126 @@ public class ProductsController : ControllerBase
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> Update(
-        int id, 
-        [FromForm] ProductRequest request,
-        [FromForm] List<IFormFile>? TechnicalDataSheetFiles,
-        [FromForm] List<IFormFile>? SafetyDataSheetFiles,
-        [FromForm] List<IFormFile>? CertificateFiles)
+    public async Task<IActionResult> Update(int id, [FromForm] ProductRequest request)
     {
         try
         {
-            // 1. Fetch existing product
             var existing = await _productRepository.GetProductByIdAsync(id);
             if (existing == null) return NotFound();
 
-            // 2. Merge Basic Info (Only if provided or the field is required)
-            // Name is [Required] in DTO, so we always update it and slug
             existing.Name = request.Name;
             existing.Slug = SlugHelper.Generate(request.Name);
-
-            // Conditional updates for nullable fields to preserve existing data
-            if (request.ShortDescription != null) existing.ShortDescription = request.ShortDescription;
-            if (request.CategoryId != null) existing.CategoryId = request.CategoryId;
-            if (request.SubCategoryId != null) existing.SubCategoryId = request.SubCategoryId;
-            if (request.BrandId != null) existing.BrandId = request.BrandId;
-            if (request.UnitId != null) existing.UnitId = request.UnitId;
-            if (request.CountryId != null) existing.CountryId = request.CountryId;
-            
-            if (request.OverviewHtml != null) existing.OverviewHtml = request.OverviewHtml;
-            if (request.AdvantageHtml != null) existing.AdvantageHtml = request.AdvantageHtml;
-            if (request.ApplicationRangeHtml != null) existing.ApplicationRangeHtml = request.ApplicationRangeHtml;
-            if (request.PrecautionHtml != null) existing.PrecautionHtml = request.PrecautionHtml;
+            existing.ShortDescription = request.ShortDescription;
+            existing.CategoryId = request.CategoryId;
+            existing.SubCategoryId = request.SubCategoryId;
+            existing.BrandId = request.BrandId;
+            existing.UnitId = request.UnitId;
+            existing.CountryId = request.CountryId;
+            existing.OverviewHtml = request.OverviewHtml;
+            existing.AdvantageHtml = request.AdvantageHtml;
+            existing.ApplicationRangeHtml = request.ApplicationRangeHtml;
+            existing.PrecautionHtml = request.PrecautionHtml;
+            existing.UpdatedAt = DateTime.UtcNow;
 
             if (!string.IsNullOrEmpty(request.SpecificationsJson))
             {
                 existing.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions) ?? new();
             }
 
-            // 3. Update Files (Preserve if null)
+            // Replace files if new ones provided
             if (request.MainImageFile != null)
             {
                 if (!string.IsNullOrEmpty(existing.MainImage)) await _cloudinaryService.DeleteFileAsync(existing.MainImage);
                 existing.MainImage = await _cloudinaryService.UploadImageAsync(request.MainImageFile, "products/main");
             }
 
-            // Append new related images/docs if provided
+            // For PUT, we usually replace collections if they are provided, or clear them.
+            // But here we'll follow a "replace if provided" pattern for simplicity.
+            if (request.RelatedImageFiles != null && request.RelatedImageFiles.Any())
+            {
+                foreach (var img in existing.RelatedImages) await _cloudinaryService.DeleteFileAsync(img);
+                existing.RelatedImages.Clear();
+                foreach (var file in request.RelatedImageFiles)
+                {
+                    existing.RelatedImages.Add(await _cloudinaryService.UploadImageAsync(file, "products/gallery"));
+                }
+            }
+
+            if (request.TechnicalDataSheetFiles != null)
+            {
+                foreach (var doc in existing.TechnicalDataSheets) await _cloudinaryService.DeleteFileAsync(doc.Url);
+                existing.TechnicalDataSheets = await UploadDocsWithNames(request.TechnicalDataSheetFiles, request.TechnicalDataSheetNamesJson, "products/documents/tds");
+            }
+
+            if (request.SafetyDataSheetFiles != null)
+            {
+                foreach (var doc in existing.SafetyDataSheets) await _cloudinaryService.DeleteFileAsync(doc.Url);
+                existing.SafetyDataSheets = await UploadDocsWithNames(request.SafetyDataSheetFiles, request.SafetyDataSheetNamesJson, "products/documents/sds");
+            }
+
+            if (request.CertificateFiles != null)
+            {
+                foreach (var doc in existing.Certificates) await _cloudinaryService.DeleteFileAsync(doc.Url);
+                existing.Certificates = await UploadDocsWithNames(request.CertificateFiles, request.CertificateNamesJson, "products/documents/certificates");
+            }
+
+            await _productRepository.UpdateProductAsync(existing);
+            return Ok(existing);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating product {Id}", id);
+            return StatusCode(500, new { message = "Error updating product", details = ex.Message });
+        }
+    }
+
+    [HttpPatch("{id}")]
+    [Authorize(Roles = "Admin")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Patch(int id, [FromForm] ProductPatchRequest request)
+    {
+        try
+        {
+            var existing = await _productRepository.GetProductByIdAsync(id);
+            if (existing == null) return NotFound();
+
+            // Patch basic fields
+            if (request.Name != null) { existing.Name = request.Name; existing.Slug = SlugHelper.Generate(request.Name); }
+            if (request.ShortDescription != null) existing.ShortDescription = request.ShortDescription;
+            if (request.CategoryId != null) existing.CategoryId = request.CategoryId;
+            if (request.SubCategoryId != null) existing.SubCategoryId = request.SubCategoryId;
+            if (request.BrandId != null) existing.BrandId = request.BrandId;
+            if (request.UnitId != null) existing.UnitId = request.UnitId;
+            if (request.CountryId != null) existing.CountryId = request.CountryId;
+            if (request.OverviewHtml != null) existing.OverviewHtml = request.OverviewHtml;
+            if (request.AdvantageHtml != null) existing.AdvantageHtml = request.AdvantageHtml;
+            if (request.ApplicationRangeHtml != null) existing.ApplicationRangeHtml = request.ApplicationRangeHtml;
+            if (request.PrecautionHtml != null) existing.PrecautionHtml = request.PrecautionHtml;
+
+            // Patch Specifications (Merge behavior)
+            if (!string.IsNullOrEmpty(request.SpecificationsJson))
+            {
+                var newSpecs = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions);
+                if (newSpecs != null)
+                {
+                    existing.Specifications.PackSizes = existing.Specifications.PackSizes.Union(newSpecs.PackSizes).ToList();
+                    existing.Specifications.PackagingDetails = existing.Specifications.PackagingDetails.Union(newSpecs.PackagingDetails).ToList();
+                    existing.Specifications.Colors = existing.Specifications.Colors.Union(newSpecs.Colors).ToList();
+                    existing.Specifications.Thicknesses = existing.Specifications.Thicknesses.Union(newSpecs.Thicknesses).ToList();
+                    existing.Specifications.Densities = existing.Specifications.Densities.Union(newSpecs.Densities).ToList();
+                    existing.Specifications.Appearances = existing.Specifications.Appearances.Union(newSpecs.Appearances).ToList();
+                    existing.Specifications.DosageCoverages = existing.Specifications.DosageCoverages.Union(newSpecs.DosageCoverages).ToList();
+                    existing.Specifications.ShelfLife = existing.Specifications.ShelfLife.Union(newSpecs.ShelfLife).ToList();
+                }
+            }
+
+            // Patch Files (Additive behavior)
+            if (request.MainImageFile != null)
+            {
+                if (!string.IsNullOrEmpty(existing.MainImage)) await _cloudinaryService.DeleteFileAsync(existing.MainImage);
+                existing.MainImage = await _cloudinaryService.UploadImageAsync(request.MainImageFile, "products/main");
+            }
+
             if (request.RelatedImageFiles != null && request.RelatedImageFiles.Any())
             {
                 foreach (var file in request.RelatedImageFiles)
@@ -189,23 +263,35 @@ public class ProductsController : ControllerBase
                 }
             }
 
-            if (TechnicalDataSheetFiles != null && TechnicalDataSheetFiles.Any())
-                existing.TechnicalDataSheets.AddRange(await UploadDocs(TechnicalDataSheetFiles, "products/documents/tds"));
-            
-            if (SafetyDataSheetFiles != null && SafetyDataSheetFiles.Any())
-                existing.SafetyDataSheets.AddRange(await UploadDocs(SafetyDataSheetFiles, "products/documents/sds"));
+            // Technical Data Sheets
+            if (request.TechnicalDataSheetFiles != null && request.TechnicalDataSheetFiles.Any())
+            {
+                var newDocs = await UploadDocsWithNames(request.TechnicalDataSheetFiles, request.TechnicalDataSheetNamesJson, "products/documents/tds");
+                existing.TechnicalDataSheets.AddRange(newDocs);
+            }
 
-            if (CertificateFiles != null && CertificateFiles.Any())
-                existing.Certificates.AddRange(await UploadDocs(CertificateFiles, "products/documents/certificates"));
+            // Safety Data Sheets
+            if (request.SafetyDataSheetFiles != null && request.SafetyDataSheetFiles.Any())
+            {
+                var newDocs = await UploadDocsWithNames(request.SafetyDataSheetFiles, request.SafetyDataSheetNamesJson, "products/documents/sds");
+                existing.SafetyDataSheets.AddRange(newDocs);
+            }
 
-            // 4. Save merged product
-            var success = await _productRepository.UpdateProductAsync(existing);
-            return success ? Ok(existing) : BadRequest();
+            // Certificates
+            if (request.CertificateFiles != null && request.CertificateFiles.Any())
+            {
+                var newDocs = await UploadDocsWithNames(request.CertificateFiles, request.CertificateNamesJson, "products/documents/certificates");
+                existing.Certificates.AddRange(newDocs);
+            }
+
+            existing.UpdatedAt = DateTime.UtcNow;
+            await _productRepository.UpdateProductAsync(existing);
+            return Ok(existing);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating product {Id}", id);
-            return StatusCode(500, new { message = "Error updating product", details = ex.Message });
+            _logger.LogError(ex, "Error patching product {Id}", id);
+            return StatusCode(500, new { message = "Internal server error" });
         }
     }
 
@@ -218,15 +304,14 @@ public class ProductsController : ControllerBase
             var product = await _productRepository.GetProductByIdAsync(id);
             if (product == null) return NotFound();
 
-            // Cleanup files from Cloudinary
             if (!string.IsNullOrEmpty(product.MainImage)) await _cloudinaryService.DeleteFileAsync(product.MainImage);
             foreach (var img in product.RelatedImages) await _cloudinaryService.DeleteFileAsync(img);
             foreach (var doc in product.TechnicalDataSheets) await _cloudinaryService.DeleteFileAsync(doc.Url);
             foreach (var doc in product.SafetyDataSheets) await _cloudinaryService.DeleteFileAsync(doc.Url);
             foreach (var doc in product.Certificates) await _cloudinaryService.DeleteFileAsync(doc.Url);
 
-            var success = await _productRepository.DeleteProductAsync(id);
-            return success ? NoContent() : NotFound();
+            await _productRepository.DeleteProductAsync(id);
+            return NoContent();
         }
         catch (Exception ex)
         {
@@ -235,15 +320,57 @@ public class ProductsController : ControllerBase
         }
     }
 
-    private async Task<List<ProductDocument>> UploadDocs(List<IFormFile>? files, string folder)
+    private async Task<List<ProductDocument>> UploadDocsWithNames(List<IFormFile>? files, string? namesJson, string folder)
     {
         var docs = new List<ProductDocument>();
-        if (files == null) return docs;
+        if (files == null || !files.Any()) return docs;
 
-        foreach (var file in files)
+        var nameList = new List<string>();
+        if (!string.IsNullOrEmpty(namesJson))
         {
+            namesJson = namesJson.Trim();
+            // Handle JSON Array like ["Name 1", "Name 2"]
+            if (namesJson.StartsWith("["))
+            {
+                try 
+                { 
+                    nameList = JsonSerializer.Deserialize<List<string>>(namesJson, _jsonOptions) ?? new(); 
+                }
+                catch { nameList.Add(namesJson); }
+            }
+            else
+            {
+                // Handle plain string (single name)
+                nameList.Add(namesJson);
+            }
+        }
+
+        for (int i = 0; i < files.Count; i++)
+        {
+            var file = files[i];
+            
+            // Logic for name override:
+            // 1. If we have a specific name for this index, use it.
+            // 2. If we only have ONE name provided but MULTIPLE files, 
+            //    we'll append a number to the name for subsequent files (e.g. "Name Part 1", "Name Part 2")
+            // 3. Fallback to original file name if no custom name provided.
+            
+            string customName;
+            if (nameList.Count > i)
+            {
+                customName = nameList[i];
+            }
+            else if (nameList.Count == 1 && files.Count > 1)
+            {
+                customName = $"{nameList[0]} ({i + 1})";
+            }
+            else
+            {
+                customName = file.FileName;
+            }
+
             var url = await _cloudinaryService.UploadFileAsync(file, folder);
-            docs.Add(new ProductDocument { Name = file.FileName, Url = url });
+            docs.Add(new ProductDocument { Name = customName, Url = url });
         }
         return docs;
     }
