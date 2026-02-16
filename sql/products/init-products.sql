@@ -8,20 +8,59 @@ BEGIN
     CREATE TABLE CategoryMaster (
         Id INT PRIMARY KEY IDENTITY(1,1),
         Name NVARCHAR(255) NOT NULL UNIQUE,
-        Slug NVARCHAR(255) NOT NULL UNIQUE,
+        Slug NVARCHAR(255) NOT NULL DEFAULT '',
         Image NVARCHAR(500) NULL,
         CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
     );
+END
+ELSE IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('CategoryMaster') AND name = 'Slug')
+BEGIN
+    ALTER TABLE CategoryMaster ADD Slug NVARCHAR(255) NOT NULL DEFAULT '';
 END
 
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'SubCategoryMaster')
 BEGIN
     CREATE TABLE SubCategoryMaster (
         Id INT PRIMARY KEY IDENTITY(1,1),
-        CategoryId INT NOT NULL FOREIGN KEY REFERENCES CategoryMaster(Id) ON DELETE CASCADE,
         Name NVARCHAR(255) NOT NULL,
-        Slug NVARCHAR(255) NOT NULL,
+        Slug NVARCHAR(255) NOT NULL DEFAULT '',
         CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+    );
+END
+ELSE 
+BEGIN
+    -- Check if Slug column exists
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('SubCategoryMaster') AND name = 'Slug')
+    BEGIN
+        ALTER TABLE SubCategoryMaster ADD Slug NVARCHAR(255) NOT NULL DEFAULT '';
+    END
+
+    -- DROP CategoryId if it exists (for many-to-many migration)
+    IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('SubCategoryMaster') AND name = 'CategoryId')
+    BEGIN
+        DECLARE @ConstraintName NVARCHAR(MAX);
+        SELECT @ConstraintName = fk.name
+        FROM sys.foreign_keys AS fk
+        INNER JOIN sys.foreign_key_columns AS fkc ON fk.object_id = fkc.constraint_object_id
+        INNER JOIN sys.columns AS c ON fkc.parent_object_id = c.object_id AND fkc.parent_column_id = c.column_id
+        WHERE fk.parent_object_id = OBJECT_ID('SubCategoryMaster') AND c.name = 'CategoryId';
+
+        IF @ConstraintName IS NOT NULL
+        BEGIN
+            EXEC('ALTER TABLE SubCategoryMaster DROP CONSTRAINT ' + @ConstraintName);
+        END
+        
+        ALTER TABLE SubCategoryMaster DROP COLUMN CategoryId;
+    END
+END
+
+-- Many-to-Many Join Table for Categories and Sub-Categories
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'CategorySubCategoryRel')
+BEGIN
+    CREATE TABLE CategorySubCategoryRel (
+        CategoryId INT NOT NULL FOREIGN KEY REFERENCES CategoryMaster(Id) ON DELETE CASCADE,
+        SubCategoryId INT NOT NULL FOREIGN KEY REFERENCES SubCategoryMaster(Id) ON DELETE CASCADE,
+        PRIMARY KEY (CategoryId, SubCategoryId)
     );
 END
 
@@ -30,10 +69,14 @@ BEGIN
     CREATE TABLE BrandMaster (
         Id INT PRIMARY KEY IDENTITY(1,1),
         Name NVARCHAR(255) NOT NULL,
-        Slug NVARCHAR(255) NOT NULL,
+        Slug NVARCHAR(255) NOT NULL DEFAULT '',
         Logo NVARCHAR(500) NULL,
         CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
     );
+END
+ELSE IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('BrandMaster') AND name = 'Slug')
+BEGIN
+    ALTER TABLE BrandMaster ADD Slug NVARCHAR(255) NOT NULL DEFAULT '';
 END
 
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UnitMaster')
@@ -58,34 +101,30 @@ BEGIN
     CREATE TABLE Products (
         Id INT PRIMARY KEY IDENTITY(1,1),
         Name NVARCHAR(500) NOT NULL,
-        Slug NVARCHAR(500) NOT NULL UNIQUE,
+        Slug NVARCHAR(500) NOT NULL DEFAULT '',
         ShortDescription NVARCHAR(MAX) NULL,
         MainImage NVARCHAR(500) NULL,
-        
-        -- Master Data IDs
         CategoryId INT NULL FOREIGN KEY REFERENCES CategoryMaster(Id),
         SubCategoryId INT NULL FOREIGN KEY REFERENCES SubCategoryMaster(Id),
         BrandId INT NULL FOREIGN KEY REFERENCES BrandMaster(Id),
         UnitId INT NULL FOREIGN KEY REFERENCES UnitMaster(Id),
         CountryId INT NULL FOREIGN KEY REFERENCES CountryMaster(Id),
-
-        -- Rich Text Content
         OverviewHtml NVARCHAR(MAX) NULL,
         AdvantageHtml NVARCHAR(MAX) NULL,
         ApplicationRangeHtml NVARCHAR(MAX) NULL,
         PrecautionHtml NVARCHAR(MAX) NULL,
-
-        -- JSON Storage for Structured Data
         SpecificationsJson NVARCHAR(MAX) NULL,
         TechnicalDataSheetsJson NVARCHAR(MAX) NULL,
         SafetyDataSheetsJson NVARCHAR(MAX) NULL,
         CertificatesJson NVARCHAR(MAX) NULL,
-        
         CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
         UpdatedAt DATETIME2 NULL
     );
     CREATE INDEX IX_Products_Name ON Products(Name);
-    CREATE INDEX IX_Products_Slug ON Products(Slug);
+END
+ELSE IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'Slug')
+BEGIN
+    ALTER TABLE Products ADD Slug NVARCHAR(500) NOT NULL DEFAULT '';
 END
 GO
 
@@ -131,25 +170,57 @@ GO
 CREATE OR ALTER PROCEDURE sp_ManageSubCategory
     @Action NVARCHAR(20), 
     @Id INT = NULL, 
-    @CategoryId INT = NULL, 
     @Name NVARCHAR(255) = NULL, 
     @Slug NVARCHAR(255) = NULL,
-    @SearchTerm NVARCHAR(100) = NULL
+    @SearchTerm NVARCHAR(100) = NULL,
+    @CategoryIdsJson NVARCHAR(MAX) = NULL -- JSON array of category IDs
 AS
 BEGIN
     IF @Action = 'CREATE'
     BEGIN
-        INSERT INTO SubCategoryMaster (CategoryId, Name, Slug) VALUES (@CategoryId, @Name, @Slug);
-        SELECT CAST(SCOPE_IDENTITY() as int);
+        INSERT INTO SubCategoryMaster (Name, Slug) VALUES (@Name, @Slug);
+        SET @Id = SCOPE_IDENTITY();
+        
+        IF @CategoryIdsJson IS NOT NULL
+            INSERT INTO CategorySubCategoryRel (CategoryId, SubCategoryId)
+            SELECT value, @Id FROM OPENJSON(@CategoryIdsJson);
+            
+        SELECT CAST(@Id as int);
     END
-    ELSE IF @Action = 'UPDATE' UPDATE SubCategoryMaster SET CategoryId = @CategoryId, Name = @Name, Slug = @Slug WHERE Id = @Id;
+    ELSE IF @Action = 'UPDATE'
+    BEGIN
+        UPDATE SubCategoryMaster SET Name = @Name, Slug = @Slug WHERE Id = @Id;
+        
+        IF @CategoryIdsJson IS NOT NULL
+        BEGIN
+            DELETE FROM CategorySubCategoryRel WHERE SubCategoryId = @Id;
+            INSERT INTO CategorySubCategoryRel (CategoryId, SubCategoryId)
+            SELECT value, @Id FROM OPENJSON(@CategoryIdsJson);
+        END
+    END
     ELSE IF @Action = 'DELETE' DELETE FROM SubCategoryMaster WHERE Id = @Id;
     ELSE IF @Action = 'GET' 
-        SELECT s.*, c.Name AS CategoryName FROM SubCategoryMaster s 
-        JOIN CategoryMaster c ON s.CategoryId = c.Id
+    BEGIN
+        SELECT s.* FROM SubCategoryMaster s
         WHERE (@Id IS NULL OR s.Id = @Id)
           AND (@SearchTerm IS NULL OR s.Name LIKE '%' + @SearchTerm + '%')
           AND (@Slug IS NULL OR s.Slug = @Slug);
+        
+        -- Return all relevant mappings in a second result set
+        SELECT CategoryId, SubCategoryId FROM CategorySubCategoryRel
+        WHERE (@Id IS NULL OR SubCategoryId = @Id);
+    END
+    ELSE IF @Action = 'GET_BY_CATEGORY'
+    BEGIN
+        SELECT s.* FROM SubCategoryMaster s
+        JOIN CategorySubCategoryRel r ON s.Id = r.SubCategoryId
+        WHERE r.CategoryId = (SELECT TOP 1 Id FROM CategoryMaster WHERE Id = @Id OR Slug = @Slug);
+        
+        -- Return mappings for these subcategories too
+        SELECT r.CategoryId, r.SubCategoryId FROM CategorySubCategoryRel r
+        JOIN CategorySubCategoryRel filter ON r.SubCategoryId = filter.SubCategoryId
+        WHERE filter.CategoryId = (SELECT TOP 1 Id FROM CategoryMaster WHERE Id = @Id OR Slug = @Slug);
+    END
 END
 GO
 
@@ -294,6 +365,14 @@ BEGIN
 END
 GO
 
+CREATE OR ALTER PROCEDURE sp_DeleteProduct
+    @Id INT
+AS
+BEGIN
+    DELETE FROM Products WHERE Id = @Id;
+END
+GO
+
 CREATE OR ALTER PROCEDURE sp_GetProductById
     @Id INT = NULL,
     @Slug NVARCHAR(500) = NULL
@@ -318,7 +397,8 @@ BEGIN
     IF @Id IS NOT NULL SET @ActualId = @Id;
     ELSE SELECT @ActualId = Id FROM Products WHERE Slug = @Slug;
 
-    SELECT ImageUrl FROM ProductRelatedImages WHERE ProductId = @ActualId;
+    IF @ActualId IS NOT NULL
+        SELECT ImageUrl FROM ProductRelatedImages WHERE ProductId = @ActualId;
 END
 GO
 

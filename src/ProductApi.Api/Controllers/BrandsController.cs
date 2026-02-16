@@ -22,9 +22,6 @@ public class BrandsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Get brands with filtering. Industry standard: search by name, filter by ID or Slug.
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] int? id, [FromQuery] string? slug)
     {
@@ -71,15 +68,25 @@ public class BrandsController : ControllerBase
     {
         try
         {
-            var brand = new BrandMaster 
-            { 
-                Id = id, 
-                Name = request.Name,
-                Slug = SlugHelper.Generate(request.Name)
-            };
-            if (request.Logo != null) brand.Logo = await _cloudinary.UploadImageAsync(request.Logo, "brands");
-            var success = await _repository.UpdateBrandAsync(brand);
-            return success ? Ok(brand) : BadRequest();
+            // 1. Fetch existing record
+            var existing = (await _repository.GetBrandsAsync(id: id)).FirstOrDefault();
+            if (existing == null) return NotFound();
+
+            // 2. Merge changes
+            existing.Name = request.Name;
+            existing.Slug = SlugHelper.Generate(request.Name);
+            
+            // Only update logo if a new file is uploaded
+            if (request.Logo != null)
+            {
+                // Optional: Delete old image from Cloudinary
+                if (!string.IsNullOrEmpty(existing.Logo)) await _cloudinary.DeleteFileAsync(existing.Logo);
+                existing.Logo = await _cloudinary.UploadImageAsync(request.Logo, "brands");
+            }
+
+            // 3. Save merged record
+            var success = await _repository.UpdateBrandAsync(existing);
+            return success ? Ok(existing) : BadRequest();
         }
         catch (Exception ex)
         {
@@ -94,6 +101,9 @@ public class BrandsController : ControllerBase
     {
         try
         {
+            var brand = (await _repository.GetBrandsAsync(id: id)).FirstOrDefault();
+            if (brand != null && !string.IsNullOrEmpty(brand.Logo)) await _cloudinary.DeleteFileAsync(brand.Logo);
+            
             var success = await _repository.DeleteBrandAsync(id);
             return success ? NoContent() : NotFound();
         }

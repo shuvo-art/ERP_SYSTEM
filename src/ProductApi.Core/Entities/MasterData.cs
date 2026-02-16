@@ -12,13 +12,12 @@ public class CategoryMaster
 public class SubCategoryMaster
 {
     public int Id { get; set; }
-    public int CategoryId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Slug { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
-    // For display
-    public string? CategoryName { get; set; }
+    // Many-to-Many Relationship
+    public List<int> CategoryIds { get; set; } = new();
 }
 
 public class BrandMaster

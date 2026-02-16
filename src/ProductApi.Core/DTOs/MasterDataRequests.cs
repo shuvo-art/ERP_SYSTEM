@@ -20,7 +20,9 @@ public class CategoryRequest
 public class SubCategoryRequest
 {
     [Required]
-    public int CategoryId { get; set; }
+    [MinLength(1, ErrorMessage = "At least one Category ID is required.")]
+    public List<int> CategoryIds { get; set; } = new();
+    
     [Required]
     public string Name { get; set; } = string.Empty;
 }
@@ -35,4 +37,10 @@ public class CountryRequest
 {
     [Required]
     public string Name { get; set; } = string.Empty;
+}
+
+public class SubCategoryPatchRequest
+{
+    public string? Name { get; set; }
+    public List<int>? CategoryIds { get; set; }
 }

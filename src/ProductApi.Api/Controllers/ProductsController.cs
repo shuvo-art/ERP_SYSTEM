@@ -146,60 +146,66 @@ public class ProductsController : ControllerBase
     {
         try
         {
-            var existingProduct = await _productRepository.GetProductByIdAsync(id);
-            if (existingProduct == null) return NotFound();
+            // 1. Fetch existing product
+            var existing = await _productRepository.GetProductByIdAsync(id);
+            if (existing == null) return NotFound();
 
-            existingProduct.Name = request.Name;
-            existingProduct.Slug = SlugHelper.Generate(request.Name);
-            existingProduct.ShortDescription = request.ShortDescription;
-            existingProduct.CategoryId = request.CategoryId;
-            existingProduct.SubCategoryId = request.SubCategoryId;
-            existingProduct.BrandId = request.BrandId;
-            existingProduct.UnitId = request.UnitId;
-            existingProduct.CountryId = request.CountryId;
-            existingProduct.OverviewHtml = request.OverviewHtml;
-            existingProduct.AdvantageHtml = request.AdvantageHtml;
-            existingProduct.ApplicationRangeHtml = request.ApplicationRangeHtml;
-            existingProduct.PrecautionHtml = request.PrecautionHtml;
+            // 2. Merge Basic Info (Only if provided or the field is required)
+            // Name is [Required] in DTO, so we always update it and slug
+            existing.Name = request.Name;
+            existing.Slug = SlugHelper.Generate(request.Name);
+
+            // Conditional updates for nullable fields to preserve existing data
+            if (request.ShortDescription != null) existing.ShortDescription = request.ShortDescription;
+            if (request.CategoryId != null) existing.CategoryId = request.CategoryId;
+            if (request.SubCategoryId != null) existing.SubCategoryId = request.SubCategoryId;
+            if (request.BrandId != null) existing.BrandId = request.BrandId;
+            if (request.UnitId != null) existing.UnitId = request.UnitId;
+            if (request.CountryId != null) existing.CountryId = request.CountryId;
+            
+            if (request.OverviewHtml != null) existing.OverviewHtml = request.OverviewHtml;
+            if (request.AdvantageHtml != null) existing.AdvantageHtml = request.AdvantageHtml;
+            if (request.ApplicationRangeHtml != null) existing.ApplicationRangeHtml = request.ApplicationRangeHtml;
+            if (request.PrecautionHtml != null) existing.PrecautionHtml = request.PrecautionHtml;
 
             if (!string.IsNullOrEmpty(request.SpecificationsJson))
             {
-                existingProduct.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions) ?? new();
+                existing.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions) ?? new();
             }
 
-            // Update Main Image
+            // 3. Update Files (Preserve if null)
             if (request.MainImageFile != null)
             {
-                if (!string.IsNullOrEmpty(existingProduct.MainImage)) await _cloudinaryService.DeleteFileAsync(existingProduct.MainImage);
-                existingProduct.MainImage = await _cloudinaryService.UploadImageAsync(request.MainImageFile, "products/main");
+                if (!string.IsNullOrEmpty(existing.MainImage)) await _cloudinaryService.DeleteFileAsync(existing.MainImage);
+                existing.MainImage = await _cloudinaryService.UploadImageAsync(request.MainImageFile, "products/main");
             }
 
-            // Update Related Images
-            if (request.RelatedImageFiles != null)
+            // Append new related images/docs if provided
+            if (request.RelatedImageFiles != null && request.RelatedImageFiles.Any())
             {
                 foreach (var file in request.RelatedImageFiles)
                 {
-                    existingProduct.RelatedImages.Add(await _cloudinaryService.UploadImageAsync(file, "products/gallery"));
+                    existing.RelatedImages.Add(await _cloudinaryService.UploadImageAsync(file, "products/gallery"));
                 }
             }
 
-            // Update Documents (Append)
-            if (TechnicalDataSheetFiles != null)
-                existingProduct.TechnicalDataSheets.AddRange(await UploadDocs(TechnicalDataSheetFiles, "products/documents/tds"));
+            if (TechnicalDataSheetFiles != null && TechnicalDataSheetFiles.Any())
+                existing.TechnicalDataSheets.AddRange(await UploadDocs(TechnicalDataSheetFiles, "products/documents/tds"));
             
-            if (SafetyDataSheetFiles != null)
-                existingProduct.SafetyDataSheets.AddRange(await UploadDocs(SafetyDataSheetFiles, "products/documents/sds"));
+            if (SafetyDataSheetFiles != null && SafetyDataSheetFiles.Any())
+                existing.SafetyDataSheets.AddRange(await UploadDocs(SafetyDataSheetFiles, "products/documents/sds"));
 
-            if (CertificateFiles != null)
-                existingProduct.Certificates.AddRange(await UploadDocs(CertificateFiles, "products/documents/certificates"));
+            if (CertificateFiles != null && CertificateFiles.Any())
+                existing.Certificates.AddRange(await UploadDocs(CertificateFiles, "products/documents/certificates"));
 
-            var success = await _productRepository.UpdateProductAsync(existingProduct);
-            return success ? Ok(existingProduct) : BadRequest();
+            // 4. Save merged product
+            var success = await _productRepository.UpdateProductAsync(existing);
+            return success ? Ok(existing) : BadRequest();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating product {Id}", id);
-            return StatusCode(500, new { message = "Error updating product" });
+            return StatusCode(500, new { message = "Error updating product", details = ex.Message });
         }
     }
 
@@ -207,18 +213,26 @@ public class ProductsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
-        var product = await _productRepository.GetProductByIdAsync(id);
-        if (product == null) return NotFound();
+        try
+        {
+            var product = await _productRepository.GetProductByIdAsync(id);
+            if (product == null) return NotFound();
 
-        // Cleanup files from Cloudinary
-        if (!string.IsNullOrEmpty(product.MainImage)) await _cloudinaryService.DeleteFileAsync(product.MainImage);
-        foreach (var img in product.RelatedImages) await _cloudinaryService.DeleteFileAsync(img);
-        foreach (var doc in product.TechnicalDataSheets) await _cloudinaryService.DeleteFileAsync(doc.Url);
-        foreach (var doc in product.SafetyDataSheets) await _cloudinaryService.DeleteFileAsync(doc.Url);
-        foreach (var doc in product.Certificates) await _cloudinaryService.DeleteFileAsync(doc.Url);
+            // Cleanup files from Cloudinary
+            if (!string.IsNullOrEmpty(product.MainImage)) await _cloudinaryService.DeleteFileAsync(product.MainImage);
+            foreach (var img in product.RelatedImages) await _cloudinaryService.DeleteFileAsync(img);
+            foreach (var doc in product.TechnicalDataSheets) await _cloudinaryService.DeleteFileAsync(doc.Url);
+            foreach (var doc in product.SafetyDataSheets) await _cloudinaryService.DeleteFileAsync(doc.Url);
+            foreach (var doc in product.Certificates) await _cloudinaryService.DeleteFileAsync(doc.Url);
 
-        var success = await _productRepository.DeleteProductAsync(id);
-        return success ? NoContent() : NotFound();
+            var success = await _productRepository.DeleteProductAsync(id);
+            return success ? NoContent() : NotFound();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting product");
+            return StatusCode(500, new { message = ex.Message });
+        }
     }
 
     private async Task<List<ProductDocument>> UploadDocs(List<IFormFile>? files, string folder)

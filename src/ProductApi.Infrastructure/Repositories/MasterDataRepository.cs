@@ -3,6 +3,7 @@ using Microsoft.Data.SqlClient;
 using ProductApi.Core.Entities;
 using ProductApi.Core.Interfaces;
 using System.Data;
+using System.Text.Json;
 
 namespace ProductApi.Infrastructure.Repositories;
 
@@ -52,28 +53,52 @@ public class MasterDataRepository : IMasterDataRepository
         return rows > 0;
     }
 
-    // SubCategories
+    // SubCategories (Many-to-Many)
     public async Task<int> CreateSubCategoryAsync(SubCategoryMaster subCategory)
     {
         using var conn = CreateConnection();
         return await conn.QuerySingleAsync<int>("sp_ManageSubCategory", 
-            new { Action = "CREATE", CategoryId = subCategory.CategoryId, Name = subCategory.Name, Slug = subCategory.Slug }, 
+            new { 
+                Action = "CREATE", 
+                Name = subCategory.Name, 
+                Slug = subCategory.Slug,
+                CategoryIdsJson = JsonSerializer.Serialize(subCategory.CategoryIds)
+            }, 
             commandType: CommandType.StoredProcedure);
     }
 
     public async Task<IEnumerable<SubCategoryMaster>> GetSubCategoriesAsync(string? searchTerm = null, int? id = null, string? slug = null)
     {
         using var conn = CreateConnection();
-        return await conn.QueryAsync<SubCategoryMaster>("sp_ManageSubCategory", 
+        using var multi = await conn.QueryMultipleAsync("sp_ManageSubCategory", 
             new { Action = "GET", SearchTerm = searchTerm, Id = id, Slug = slug }, 
             commandType: CommandType.StoredProcedure);
+
+        var subCategories = (await multi.ReadAsync<SubCategoryMaster>()).ToList();
+        var mappings = (await multi.ReadAsync<dynamic>()).ToList();
+        
+        foreach (var sub in subCategories)
+        {
+            sub.CategoryIds = mappings
+                .Where(m => (int)m.SubCategoryId == sub.Id)
+                .Select(m => (int)m.CategoryId)
+                .ToList();
+        }
+
+        return subCategories;
     }
 
     public async Task<bool> UpdateSubCategoryAsync(SubCategoryMaster subCategory)
     {
         using var conn = CreateConnection();
         var rows = await conn.ExecuteAsync("sp_ManageSubCategory", 
-            new { Action = "UPDATE", Id = subCategory.Id, CategoryId = subCategory.CategoryId, Name = subCategory.Name, Slug = subCategory.Slug }, 
+            new { 
+                Action = "UPDATE", 
+                Id = subCategory.Id, 
+                Name = subCategory.Name, 
+                Slug = subCategory.Slug,
+                CategoryIdsJson = JsonSerializer.Serialize(subCategory.CategoryIds)
+            }, 
             commandType: CommandType.StoredProcedure);
         return rows > 0;
     }

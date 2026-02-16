@@ -11,40 +11,81 @@ namespace ProductApi.Api.Controllers;
 public class UnitsController : ControllerBase
 {
     private readonly IMasterDataRepository _repository;
+    private readonly ILogger<UnitsController> _logger;
 
-    public UnitsController(IMasterDataRepository repository)
+    public UnitsController(IMasterDataRepository repository, ILogger<UnitsController> logger)
     {
         _repository = repository;
+        _logger = logger;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] int? id) 
-        => Ok(await _repository.GetUnitsAsync(search, id));
+    {
+        try
+        {
+            var results = await _repository.GetUnitsAsync(search, id);
+            return Ok(results);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching units");
+            return StatusCode(500, new { message = ex.Message });
+        }
+    }
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create([FromBody] UnitRequest request)
     {
-        var unit = new UnitMaster { Name = request.Name };
-        var id = await _repository.CreateUnitAsync(unit);
-        unit.Id = id;
-        return CreatedAtAction(nameof(GetAll), new { id = unit.Id }, unit);
+        try
+        {
+            var unit = new UnitMaster { Name = request.Name };
+            var id = await _repository.CreateUnitAsync(unit);
+            unit.Id = id;
+            return CreatedAtAction(nameof(GetAll), new { id = unit.Id }, unit);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating unit");
+            return StatusCode(500, new { message = ex.Message });
+        }
     }
 
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int id, [FromBody] UnitRequest request)
     {
-        var unit = new UnitMaster { Id = id, Name = request.Name };
-        var success = await _repository.UpdateUnitAsync(unit);
-        return success ? Ok(unit) : BadRequest();
+        try
+        {
+            var existing = (await _repository.GetUnitsAsync(id: id)).FirstOrDefault();
+            if (existing == null) return NotFound();
+
+            existing.Name = request.Name;
+
+            var success = await _repository.UpdateUnitAsync(existing);
+            return success ? Ok(existing) : BadRequest();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating unit");
+            return StatusCode(500, new { message = ex.Message });
+        }
     }
 
     [HttpDelete("{id}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
-        var success = await _repository.DeleteUnitAsync(id);
-        return success ? NoContent() : NotFound();
+        try
+        {
+            var success = await _repository.DeleteUnitAsync(id);
+            return success ? NoContent() : NotFound();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting unit");
+            return StatusCode(500, new { message = ex.Message });
+        }
     }
 }
