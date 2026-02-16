@@ -7,7 +7,7 @@ using ProductApi.Core.DTOs;
 namespace ProductApi.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/v1/units")]
 public class UnitsController : ControllerBase
 {
     private readonly IMasterDataRepository _repository;

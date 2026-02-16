@@ -107,6 +107,79 @@ public class ReferenceProjectController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id }, MapToResponse(project));
     }
 
+    [HttpPut("{id}")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Update(int id, [FromForm] ReferenceProjectRequest request)
+    {
+        var existing = await _repository.GetByIdAsync(id);
+        if (existing == null) return NotFound();
+
+        // 1. Update Images
+        if (request.HeroImage != null)
+        {
+            if (!string.IsNullOrEmpty(existing.HeroImageUrl))
+                await _cloudinaryService.DeleteFileAsync(existing.HeroImageUrl);
+            existing.HeroImageUrl = await _cloudinaryService.UploadImageAsync(request.HeroImage, "projects/hero");
+        }
+
+        if (request.GalleryImages != null && request.GalleryImages.Any())
+        {
+            foreach (var img in existing.GalleryImages)
+                await _cloudinaryService.DeleteFileAsync(img.ImageUrl);
+            
+            existing.GalleryImages.Clear();
+            foreach (var img in request.GalleryImages)
+            {
+                var url = await _cloudinaryService.UploadImageAsync(img, "projects/gallery");
+                existing.GalleryImages.Add(new ProjectGalleryImage { ImageUrl = url, ProjectId = id });
+            }
+        }
+
+        if (request.DetailImages != null && request.DetailImages.Any())
+        {
+            foreach (var img in existing.DetailImages)
+                await _cloudinaryService.DeleteFileAsync(img.ImageUrl);
+            
+            existing.DetailImages.Clear();
+            foreach (var img in request.DetailImages)
+            {
+                var url = await _cloudinaryService.UploadImageAsync(img, "projects/details");
+                existing.DetailImages.Add(new ProjectDetailImage { ImageUrl = url, ProjectId = id });
+            }
+        }
+
+        // 2. Parse JSON fields
+        if (!string.IsNullOrEmpty(request.ProductIdsJson))
+        {
+            existing.ProjectProducts.Clear();
+            var productIds = JsonSerializer.Deserialize<List<int>>(request.ProductIdsJson, _jsonOptions) ?? new();
+            foreach (var pid in productIds.Distinct())
+            {
+                existing.ProjectProducts.Add(new ProjectProductJunction { ProjectId = id, ProductId = pid });
+            }
+        }
+
+        // 3. Update Basic Fields
+        existing.ProjectName = request.ProjectName;
+        existing.CategoryId = request.CategoryId;
+        existing.Location = request.Location;
+        existing.OwnerName = request.OwnerName;
+        existing.Contractor = request.Contractor;
+        existing.EngineerName = request.EngineerName;
+        existing.ClientName = request.ClientName;
+        existing.ShortDescription = request.ShortDescription;
+        existing.DetailsDescription = request.DetailsDescription;
+        existing.Status = request.Status;
+        existing.StartDate = request.StartDate;
+        existing.CompletionDate = request.CompletionDate;
+        existing.Featured = request.Featured;
+        existing.ProjectOverviewJson = request.ProjectOverviewJson;
+        existing.UpdatedAt = DateTime.UtcNow;
+
+        await _repository.UpdateAsync(existing);
+        return Ok(MapToResponse(existing));
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

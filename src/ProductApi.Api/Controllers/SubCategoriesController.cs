@@ -8,7 +8,7 @@ using ProductApi.Core.Helpers;
 namespace ProductApi.Api.Controllers;
 
 [ApiController]
-[Route("api/v1/[controller]")]
+[Route("api/v1/subcategories")]
 public class SubCategoriesController : ControllerBase
 {
     private readonly IMasterDataRepository _repository;
