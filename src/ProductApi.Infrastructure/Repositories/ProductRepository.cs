@@ -48,6 +48,24 @@ public class ProductRepository : IProductRepository
         if (productData == null) return null;
 
         var product = MapFromDynamic(productData);
+        
+        // Read Specifications
+        var specsData = await multi.ReadAsync<dynamic>();
+        foreach (var s in specsData)
+        {
+            switch ((string)s.Label)
+            {
+                case "PackSizes": product.Specifications.PackSizes.Add(s.Value); break;
+                case "PackagingDetails": product.Specifications.PackagingDetails.Add(s.Value); break;
+                case "Colors": product.Specifications.Colors.Add(s.Value); break;
+                case "Thicknesses": product.Specifications.Thicknesses.Add(s.Value); break;
+                case "Densities": product.Specifications.Densities.Add(s.Value); break;
+                case "Appearances": product.Specifications.Appearances.Add(s.Value); break;
+                case "DosageCoverages": product.Specifications.DosageCoverages.Add(s.Value); break;
+                case "ShelfLife": product.Specifications.ShelfLife.Add(s.Value); break;
+            }
+        }
+
         product.RelatedImages = (await multi.ReadAsync<string>()).ToList();
         product.TechnicalDataSheets = (await multi.ReadAsync<ProductDocument>()).ToList();
         product.SafetyDataSheets = (await multi.ReadAsync<ProductDocument>()).ToList();
@@ -65,6 +83,24 @@ public class ProductRepository : IProductRepository
         if (productData == null) return null;
 
         var product = MapFromDynamic(productData);
+        
+        // Read Specifications
+        var specsData = await multi.ReadAsync<dynamic>();
+        foreach (var s in specsData)
+        {
+            switch ((string)s.Label)
+            {
+                case "PackSizes": product.Specifications.PackSizes.Add(s.Value); break;
+                case "PackagingDetails": product.Specifications.PackagingDetails.Add(s.Value); break;
+                case "Colors": product.Specifications.Colors.Add(s.Value); break;
+                case "Thicknesses": product.Specifications.Thicknesses.Add(s.Value); break;
+                case "Densities": product.Specifications.Densities.Add(s.Value); break;
+                case "Appearances": product.Specifications.Appearances.Add(s.Value); break;
+                case "DosageCoverages": product.Specifications.DosageCoverages.Add(s.Value); break;
+                case "ShelfLife": product.Specifications.ShelfLife.Add(s.Value); break;
+            }
+        }
+
         product.RelatedImages = (await multi.ReadAsync<string>()).ToList();
         product.TechnicalDataSheets = (await multi.ReadAsync<ProductDocument>()).ToList();
         product.SafetyDataSheets = (await multi.ReadAsync<ProductDocument>()).ToList();
@@ -135,7 +171,7 @@ public class ProductRepository : IProductRepository
 
     private Product MapFromDynamic(dynamic d)
     {
-        var product = new Product
+        return new Product
         {
             Id = d.Id,
             Name = d.Name,
@@ -159,10 +195,5 @@ public class ProductRepository : IProductRepository
             CreatedAt = d.CreatedAt,
             UpdatedAt = d.UpdatedAt
         };
-
-        if (d.SpecificationsJson != null)
-            product.Specifications = JsonSerializer.Deserialize<ProductSpecifications>((string)d.SpecificationsJson, _jsonOptions) ?? new();
-        
-        return product;
     }
 }

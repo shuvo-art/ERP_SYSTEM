@@ -113,7 +113,6 @@ BEGIN
         AdvantageHtml NVARCHAR(MAX) NULL,
         ApplicationRangeHtml NVARCHAR(MAX) NULL,
         PrecautionHtml NVARCHAR(MAX) NULL,
-        SpecificationsJson NVARCHAR(MAX) NULL,
         CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
         UpdatedAt DATETIME2 NULL
     );
@@ -128,7 +127,21 @@ BEGIN
         ALTER TABLE Products DROP COLUMN SafetyDataSheetsJson;
     IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'CertificatesJson')
         ALTER TABLE Products DROP COLUMN CertificatesJson;
+    IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'SpecificationsJson')
+        ALTER TABLE Products DROP COLUMN SpecificationsJson;
 END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProductSpecifications')
+BEGIN
+    CREATE TABLE ProductSpecifications (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        ProductId INT NOT NULL FOREIGN KEY REFERENCES Products(Id) ON DELETE CASCADE,
+        Label NVARCHAR(100) NOT NULL, -- e.g., 'PackSize', 'Color', etc.
+        Value NVARCHAR(MAX) NOT NULL
+    );
+END
+GO
 GO
 
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProductRelatedImages')
@@ -347,16 +360,23 @@ BEGIN
     BEGIN TRANSACTION;
     INSERT INTO Products (
         Name, Slug, ShortDescription, MainImage, CategoryId, SubCategoryId, BrandId, UnitId, CountryId,
-        OverviewHtml, AdvantageHtml, ApplicationRangeHtml, PrecautionHtml,
-        SpecificationsJson
+        OverviewHtml, AdvantageHtml, ApplicationRangeHtml, PrecautionHtml
     )
     VALUES (
         @Name, @Slug, @ShortDescription, @MainImage, @CategoryId, @SubCategoryId, @BrandId, @UnitId, @CountryId,
-        @OverviewHtml, @AdvantageHtml, @ApplicationRangeHtml, @PrecautionHtml,
-        @SpecificationsJson
+        @OverviewHtml, @AdvantageHtml, @ApplicationRangeHtml, @PrecautionHtml
     );
     SET @NewProductId = SCOPE_IDENTITY();
     
+    -- Insert Product Specifications
+    IF @SpecificationsJson IS NOT NULL
+    BEGIN
+        INSERT INTO ProductSpecifications (ProductId, Label, Value)
+        SELECT @NewProductId, [key], ArrayValue.[value]
+        FROM OPENJSON(@SpecificationsJson) AS OuterJson
+        CROSS APPLY OPENJSON(OuterJson.[value]) AS ArrayValue;
+    END
+
     -- Insert Related Images
     IF @RelatedImagesJson IS NOT NULL
         INSERT INTO ProductRelatedImages (ProductId, ImageUrl) SELECT @NewProductId, value FROM OPENJSON(@RelatedImagesJson);
@@ -409,9 +429,18 @@ BEGIN
         Name = @Name, Slug = @Slug, ShortDescription = @ShortDescription, MainImage = @MainImage,
         CategoryId = @CategoryId, SubCategoryId = @SubCategoryId, BrandId = @BrandId, UnitId = @UnitId, CountryId = @CountryId,
         OverviewHtml = @OverviewHtml, AdvantageHtml = @AdvantageHtml, ApplicationRangeHtml = @ApplicationRangeHtml, PrecautionHtml = @PrecautionHtml,
-        SpecificationsJson = @SpecificationsJson,
         UpdatedAt = GETUTCDATE() 
     WHERE Id = @Id;
+
+    -- Update Product Specifications
+    DELETE FROM ProductSpecifications WHERE ProductId = @Id;
+    IF @SpecificationsJson IS NOT NULL
+    BEGIN
+        INSERT INTO ProductSpecifications (ProductId, Label, Value)
+        SELECT @Id, [key], ArrayValue.[value]
+        FROM OPENJSON(@SpecificationsJson) AS OuterJson
+        CROSS APPLY OPENJSON(OuterJson.[value]) AS ArrayValue;
+    END
 
     -- Cleanup and Re-insert
     DELETE FROM ProductRelatedImages WHERE ProductId = @Id;
@@ -471,6 +500,7 @@ BEGIN
 
     IF @ActualId IS NOT NULL
     BEGIN
+        SELECT Label, Value FROM ProductSpecifications WHERE ProductId = @ActualId;
         SELECT ImageUrl FROM ProductRelatedImages WHERE ProductId = @ActualId;
         SELECT Name, Url FROM ProductTechnicalDataSheets WHERE ProductId = @ActualId;
         SELECT Name, Url FROM ProductSafetyDataSheets WHERE ProductId = @ActualId;

@@ -97,7 +97,24 @@ public class ProductsController : ControllerBase
             // Parse Specifications
             if (!string.IsNullOrEmpty(request.SpecificationsJson))
             {
-                product.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions) ?? new();
+                try
+                {
+                    // Attempt standard deserialization
+                    product.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions) ?? new();
+                }
+                catch (JsonException)
+                {
+                    // Fallback: Handle double-escaped JSON (common in CURL/CLI requests on Windows)
+                    try
+                    {
+                        var unescaped = request.SpecificationsJson.Replace("\\\"", "\"").Replace("\\\\", "\\");
+                        product.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(unescaped, _jsonOptions) ?? new();
+                    }
+                    catch
+                    {
+                        return BadRequest(new { message = "Invalid JSON format in SpecificationsJson" });
+                    }
+                }
             }
 
             // Upload Main Image
@@ -158,7 +175,22 @@ public class ProductsController : ControllerBase
 
             if (!string.IsNullOrEmpty(request.SpecificationsJson))
             {
-                existing.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions) ?? new();
+                try
+                {
+                    existing.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions) ?? new();
+                }
+                catch (JsonException)
+                {
+                    try
+                    {
+                        var unescaped = request.SpecificationsJson.Replace("\\\"", "\"").Replace("\\\\", "\\");
+                        existing.Specifications = JsonSerializer.Deserialize<ProductSpecifications>(unescaped, _jsonOptions) ?? new();
+                    }
+                    catch
+                    {
+                        return BadRequest(new { message = "Invalid JSON format in SpecificationsJson" });
+                    }
+                }
             }
 
             // Replace files if new ones provided
@@ -234,7 +266,24 @@ public class ProductsController : ControllerBase
             // Patch Specifications (Merge behavior)
             if (!string.IsNullOrEmpty(request.SpecificationsJson))
             {
-                var newSpecs = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions);
+                ProductSpecifications? newSpecs = null;
+                try
+                {
+                    newSpecs = JsonSerializer.Deserialize<ProductSpecifications>(request.SpecificationsJson, _jsonOptions);
+                }
+                catch (JsonException)
+                {
+                    try
+                    {
+                        var unescaped = request.SpecificationsJson.Replace("\\\"", "\"").Replace("\\\\", "\\");
+                        newSpecs = JsonSerializer.Deserialize<ProductSpecifications>(unescaped, _jsonOptions);
+                    }
+                    catch
+                    {
+                        return BadRequest(new { message = "Invalid JSON format in SpecificationsJson" });
+                    }
+                }
+
                 if (newSpecs != null)
                 {
                     existing.Specifications.PackSizes = existing.Specifications.PackSizes.Union(newSpecs.PackSizes).ToList();
@@ -336,7 +385,20 @@ public class ProductsController : ControllerBase
                 { 
                     nameList = JsonSerializer.Deserialize<List<string>>(namesJson, _jsonOptions) ?? new(); 
                 }
-                catch { nameList.Add(namesJson); }
+                catch (JsonException)
+                {
+                    // Fallback: Handle double-escaped JSON
+                    try
+                    {
+                        var unescaped = namesJson.Replace("\\\"", "\"").Replace("\\\\", "\\");
+                        nameList = JsonSerializer.Deserialize<List<string>>(unescaped, _jsonOptions) ?? new();
+                    }
+                    catch
+                    {
+                        // Final fallback: Treat as a single plain string
+                        nameList.Add(namesJson);
+                    }
+                }
             }
             else
             {
