@@ -49,6 +49,9 @@ public class ProductRepository : IProductRepository
 
         var product = MapFromDynamic(productData);
         product.RelatedImages = (await multi.ReadAsync<string>()).ToList();
+        product.TechnicalDataSheets = (await multi.ReadAsync<ProductDocument>()).ToList();
+        product.SafetyDataSheets = (await multi.ReadAsync<ProductDocument>()).ToList();
+        product.Certificates = (await multi.ReadAsync<ProductDocument>()).ToList();
 
         return product;
     }
@@ -63,6 +66,9 @@ public class ProductRepository : IProductRepository
 
         var product = MapFromDynamic(productData);
         product.RelatedImages = (await multi.ReadAsync<string>()).ToList();
+        product.TechnicalDataSheets = (await multi.ReadAsync<ProductDocument>()).ToList();
+        product.SafetyDataSheets = (await multi.ReadAsync<ProductDocument>()).ToList();
+        product.Certificates = (await multi.ReadAsync<ProductDocument>()).ToList();
 
         return product;
     }
@@ -157,15 +163,6 @@ public class ProductRepository : IProductRepository
         if (d.SpecificationsJson != null)
             product.Specifications = JsonSerializer.Deserialize<ProductSpecifications>((string)d.SpecificationsJson, _jsonOptions) ?? new();
         
-        if (d.TechnicalDataSheetsJson != null)
-            product.TechnicalDataSheets = JsonSerializer.Deserialize<List<ProductDocument>>((string)d.TechnicalDataSheetsJson, _jsonOptions) ?? new();
-
-        if (d.SafetyDataSheetsJson != null)
-            product.SafetyDataSheets = JsonSerializer.Deserialize<List<ProductDocument>>((string)d.SafetyDataSheetsJson, _jsonOptions) ?? new();
-
-        if (d.CertificatesJson != null)
-            product.Certificates = JsonSerializer.Deserialize<List<ProductDocument>>((string)d.CertificatesJson, _jsonOptions) ?? new();
-
         return product;
     }
 }

@@ -1,3 +1,4 @@
+using System.IO;
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using Microsoft.AspNetCore.Http;
@@ -20,15 +21,18 @@ public class CloudinaryService : ICloudinaryService
         _cloudinary = new Cloudinary(account);
     }
 
-    public async Task<string> UploadImageAsync(IFormFile file, string folder)
+    public async Task<string> UploadImageAsync(IFormFile file, string folder, string? customFileName = null)
     {
         if (file == null || file.Length == 0) return string.Empty;
 
         using var stream = file.OpenReadStream();
+        var fileName = !string.IsNullOrEmpty(customFileName) ? customFileName : file.FileName;
+        
         var uploadParams = new ImageUploadParams
         {
-            File = new FileDescription(file.FileName, stream),
+            File = new FileDescription(fileName, stream),
             Folder = folder,
+            PublicId = !string.IsNullOrEmpty(customFileName) ? Path.GetFileNameWithoutExtension(customFileName) : null,
             Transformation = new Transformation().Quality("auto").FetchFormat("auto")
         };
 
@@ -36,15 +40,18 @@ public class CloudinaryService : ICloudinaryService
         return uploadResult.SecureUrl.ToString();
     }
 
-    public async Task<string> UploadFileAsync(IFormFile file, string folder)
+    public async Task<string> UploadFileAsync(IFormFile file, string folder, string? customFileName = null)
     {
         if (file == null || file.Length == 0) return string.Empty;
 
         using var stream = file.OpenReadStream();
+        var fileName = !string.IsNullOrEmpty(customFileName) ? customFileName : file.FileName;
+
         var uploadParams = new RawUploadParams
         {
-            File = new FileDescription(file.FileName, stream),
-            Folder = folder
+            File = new FileDescription(fileName, stream),
+            Folder = folder,
+            PublicId = !string.IsNullOrEmpty(customFileName) ? Path.GetFileNameWithoutExtension(customFileName) : null
         };
 
         var uploadResult = await _cloudinary.UploadAsync(uploadParams);

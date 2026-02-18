@@ -369,7 +369,7 @@ public class ProductsController : ControllerBase
                 customName = file.FileName;
             }
 
-            var url = await _cloudinaryService.UploadFileAsync(file, folder);
+            var url = await _cloudinaryService.UploadFileAsync(file, folder, customName);
             docs.Add(new ProductDocument { Name = customName, Url = url });
         }
         return docs;

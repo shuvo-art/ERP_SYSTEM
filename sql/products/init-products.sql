@@ -114,9 +114,6 @@ BEGIN
         ApplicationRangeHtml NVARCHAR(MAX) NULL,
         PrecautionHtml NVARCHAR(MAX) NULL,
         SpecificationsJson NVARCHAR(MAX) NULL,
-        TechnicalDataSheetsJson NVARCHAR(MAX) NULL,
-        SafetyDataSheetsJson NVARCHAR(MAX) NULL,
-        CertificatesJson NVARCHAR(MAX) NULL,
         CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
         UpdatedAt DATETIME2 NULL
     );
@@ -124,50 +121,13 @@ BEGIN
 END
 ELSE
 BEGIN
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'Slug')
-        ALTER TABLE Products ADD Slug NVARCHAR(500) NOT NULL DEFAULT '';
-    
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'ShortDescription')
-        ALTER TABLE Products ADD ShortDescription NVARCHAR(MAX) NULL;
-
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'CategoryId')
-        ALTER TABLE Products ADD CategoryId INT NULL;
-
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'SubCategoryId')
-        ALTER TABLE Products ADD SubCategoryId INT NULL;
-
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'BrandId')
-        ALTER TABLE Products ADD BrandId INT NULL;
-
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'UnitId')
-        ALTER TABLE Products ADD UnitId INT NULL;
-
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'CountryId')
-        ALTER TABLE Products ADD CountryId INT NULL;
-
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'OverviewHtml')
-        ALTER TABLE Products ADD OverviewHtml NVARCHAR(MAX) NULL;
-
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'AdvantageHtml')
-        ALTER TABLE Products ADD AdvantageHtml NVARCHAR(MAX) NULL;
-
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'ApplicationRangeHtml')
-        ALTER TABLE Products ADD ApplicationRangeHtml NVARCHAR(MAX) NULL;
-
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'PrecautionHtml')
-        ALTER TABLE Products ADD PrecautionHtml NVARCHAR(MAX) NULL;
-    
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'SpecificationsJson')
-        ALTER TABLE Products ADD SpecificationsJson NVARCHAR(MAX) NULL;
-        
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'TechnicalDataSheetsJson')
-        ALTER TABLE Products ADD TechnicalDataSheetsJson NVARCHAR(MAX) NULL;
-        
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'SafetyDataSheetsJson')
-        ALTER TABLE Products ADD SafetyDataSheetsJson NVARCHAR(MAX) NULL;
-        
-    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'CertificatesJson')
-        ALTER TABLE Products ADD CertificatesJson NVARCHAR(MAX) NULL;
+    -- Cleanup old JSON columns if they exist
+    IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'TechnicalDataSheetsJson')
+        ALTER TABLE Products DROP COLUMN TechnicalDataSheetsJson;
+    IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'SafetyDataSheetsJson')
+        ALTER TABLE Products DROP COLUMN SafetyDataSheetsJson;
+    IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Products') AND name = 'CertificatesJson')
+        ALTER TABLE Products DROP COLUMN CertificatesJson;
 END
 GO
 
@@ -177,6 +137,39 @@ BEGIN
         Id INT PRIMARY KEY IDENTITY(1,1),
         ProductId INT NOT NULL FOREIGN KEY REFERENCES Products(Id) ON DELETE CASCADE,
         ImageUrl NVARCHAR(500) NOT NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProductTechnicalDataSheets')
+BEGIN
+    CREATE TABLE ProductTechnicalDataSheets (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        ProductId INT NOT NULL FOREIGN KEY REFERENCES Products(Id) ON DELETE CASCADE,
+        Name NVARCHAR(500) NOT NULL,
+        Url NVARCHAR(500) NOT NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProductSafetyDataSheets')
+BEGIN
+    CREATE TABLE ProductSafetyDataSheets (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        ProductId INT NOT NULL FOREIGN KEY REFERENCES Products(Id) ON DELETE CASCADE,
+        Name NVARCHAR(500) NOT NULL,
+        Url NVARCHAR(500) NOT NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProductCertificates')
+BEGIN
+    CREATE TABLE ProductCertificates (
+        Id INT PRIMARY KEY IDENTITY(1,1),
+        ProductId INT NOT NULL FOREIGN KEY REFERENCES Products(Id) ON DELETE CASCADE,
+        Name NVARCHAR(500) NOT NULL,
+        Url NVARCHAR(500) NOT NULL
     );
 END
 GO
@@ -355,16 +348,34 @@ BEGIN
     INSERT INTO Products (
         Name, Slug, ShortDescription, MainImage, CategoryId, SubCategoryId, BrandId, UnitId, CountryId,
         OverviewHtml, AdvantageHtml, ApplicationRangeHtml, PrecautionHtml,
-        SpecificationsJson, TechnicalDataSheetsJson, SafetyDataSheetsJson, CertificatesJson
+        SpecificationsJson
     )
     VALUES (
         @Name, @Slug, @ShortDescription, @MainImage, @CategoryId, @SubCategoryId, @BrandId, @UnitId, @CountryId,
         @OverviewHtml, @AdvantageHtml, @ApplicationRangeHtml, @PrecautionHtml,
-        @SpecificationsJson, @TechnicalDataSheetsJson, @SafetyDataSheetsJson, @CertificatesJson
+        @SpecificationsJson
     );
     SET @NewProductId = SCOPE_IDENTITY();
+    
+    -- Insert Related Images
     IF @RelatedImagesJson IS NOT NULL
         INSERT INTO ProductRelatedImages (ProductId, ImageUrl) SELECT @NewProductId, value FROM OPENJSON(@RelatedImagesJson);
+    
+    -- Insert TDS
+    IF @TechnicalDataSheetsJson IS NOT NULL
+        INSERT INTO ProductTechnicalDataSheets (ProductId, Name, Url) 
+        SELECT @NewProductId, JSON_VALUE(value, '$.Name'), JSON_VALUE(value, '$.Url') FROM OPENJSON(@TechnicalDataSheetsJson);
+    
+    -- Insert SDS
+    IF @SafetyDataSheetsJson IS NOT NULL
+        INSERT INTO ProductSafetyDataSheets (ProductId, Name, Url) 
+        SELECT @NewProductId, JSON_VALUE(value, '$.Name'), JSON_VALUE(value, '$.Url') FROM OPENJSON(@SafetyDataSheetsJson);
+    
+    -- Insert Certificates
+    IF @CertificatesJson IS NOT NULL
+        INSERT INTO ProductCertificates (ProductId, Name, Url) 
+        SELECT @NewProductId, JSON_VALUE(value, '$.Name'), JSON_VALUE(value, '$.Url') FROM OPENJSON(@CertificatesJson);
+        
     COMMIT TRANSACTION;
 END
 GO
@@ -398,12 +409,30 @@ BEGIN
         Name = @Name, Slug = @Slug, ShortDescription = @ShortDescription, MainImage = @MainImage,
         CategoryId = @CategoryId, SubCategoryId = @SubCategoryId, BrandId = @BrandId, UnitId = @UnitId, CountryId = @CountryId,
         OverviewHtml = @OverviewHtml, AdvantageHtml = @AdvantageHtml, ApplicationRangeHtml = @ApplicationRangeHtml, PrecautionHtml = @PrecautionHtml,
-        SpecificationsJson = @SpecificationsJson, TechnicalDataSheetsJson = @TechnicalDataSheetsJson, SafetyDataSheetsJson = @SafetyDataSheetsJson, CertificatesJson = @CertificatesJson,
+        SpecificationsJson = @SpecificationsJson,
         UpdatedAt = GETUTCDATE() 
     WHERE Id = @Id;
+
+    -- Cleanup and Re-insert
     DELETE FROM ProductRelatedImages WHERE ProductId = @Id;
     IF @RelatedImagesJson IS NOT NULL
         INSERT INTO ProductRelatedImages (ProductId, ImageUrl) SELECT @Id, value FROM OPENJSON(@RelatedImagesJson);
+
+    DELETE FROM ProductTechnicalDataSheets WHERE ProductId = @Id;
+    IF @TechnicalDataSheetsJson IS NOT NULL
+        INSERT INTO ProductTechnicalDataSheets (ProductId, Name, Url) 
+        SELECT @Id, JSON_VALUE(value, '$.Name'), JSON_VALUE(value, '$.Url') FROM OPENJSON(@TechnicalDataSheetsJson);
+
+    DELETE FROM ProductSafetyDataSheets WHERE ProductId = @Id;
+    IF @SafetyDataSheetsJson IS NOT NULL
+        INSERT INTO ProductSafetyDataSheets (ProductId, Name, Url) 
+        SELECT @Id, JSON_VALUE(value, '$.Name'), JSON_VALUE(value, '$.Url') FROM OPENJSON(@SafetyDataSheetsJson);
+
+    DELETE FROM ProductCertificates WHERE ProductId = @Id;
+    IF @CertificatesJson IS NOT NULL
+        INSERT INTO ProductCertificates (ProductId, Name, Url) 
+        SELECT @Id, JSON_VALUE(value, '$.Name'), JSON_VALUE(value, '$.Url') FROM OPENJSON(@CertificatesJson);
+
     COMMIT TRANSACTION;
 END
 GO
@@ -441,7 +470,12 @@ BEGIN
     ELSE SELECT @ActualId = Id FROM Products WHERE Slug = @Slug;
 
     IF @ActualId IS NOT NULL
+    BEGIN
         SELECT ImageUrl FROM ProductRelatedImages WHERE ProductId = @ActualId;
+        SELECT Name, Url FROM ProductTechnicalDataSheets WHERE ProductId = @ActualId;
+        SELECT Name, Url FROM ProductSafetyDataSheets WHERE ProductId = @ActualId;
+        SELECT Name, Url FROM ProductCertificates WHERE ProductId = @ActualId;
+    END
 END
 GO
 
