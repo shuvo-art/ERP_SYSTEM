@@ -142,7 +142,6 @@ BEGIN
     );
 END
 GO
-GO
 
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ProductRelatedImages')
 BEGIN
@@ -372,7 +371,7 @@ BEGIN
     IF @SpecificationsJson IS NOT NULL
     BEGIN
         INSERT INTO ProductSpecifications (ProductId, Label, Value)
-        SELECT @NewProductId, [key], ArrayValue.[value]
+        SELECT @NewProductId, OuterJson.[key], ArrayValue.[value]
         FROM OPENJSON(@SpecificationsJson) AS OuterJson
         CROSS APPLY OPENJSON(OuterJson.[value]) AS ArrayValue;
     END
@@ -437,7 +436,7 @@ BEGIN
     IF @SpecificationsJson IS NOT NULL
     BEGIN
         INSERT INTO ProductSpecifications (ProductId, Label, Value)
-        SELECT @Id, [key], ArrayValue.[value]
+        SELECT @Id, OuterJson.[key], ArrayValue.[value]
         FROM OPENJSON(@SpecificationsJson) AS OuterJson
         CROSS APPLY OPENJSON(OuterJson.[value]) AS ArrayValue;
     END
