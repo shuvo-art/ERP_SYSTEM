@@ -24,6 +24,14 @@ public class AuthController : ControllerBase
     private readonly IValidator<ResendOtpRequest> _resendOtpValidator;
     private readonly ICacheService _cacheService;
 
+    // ─── Rate Limit Constants ─────────────────────────────────────────────────
+    // These constants define the behaviour of atomic increment rate limiting (Task 1).
+    // All counters use Redis keys with a TTL so they self-expire; no cron job needed.
+    private const int MaxLoginFailures       = 5;   // Block after 5 failed login attempts
+    private const int MaxResendOtpRequests   = 3;   // Block after 3 resend OTP requests in the window
+    private const int MaxForgotPasswordReqs  = 3;   // Block after 3 forgot-password requests in the window
+    private static readonly TimeSpan RateLimitWindow = TimeSpan.FromMinutes(15);
+
     public AuthController(
         IAuthRepository authRepository,
         IJwtTokenService jwtTokenService,
@@ -136,69 +144,47 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Verify email with OTP
+    /// Verify email with OTP — uses Lua atomic verify-and-delete (Task 2)
     /// </summary>
     [HttpPost("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyOtpRequest request)
     {
         try
         {
-            // Try to get result from Cache first (The fast path)
             var cacheKey = $"otp_verify_{request.Email}";
-            var cachedOtp = await _cacheService.GetAsync<string>(cacheKey);
 
-            if (cachedOtp != null)
+            // ─── Task 2: Lua Atomic Verify & Delete ────────────────────────────────
+            // AtomicVerifyAndDeleteAsync executes a Lua script on the Redis server that
+            // checks AND deletes the OTP in one atomic step (no race condition possible).
+            // Returns true only if the OTP existed and matched; deletes it either way.
+            var otpConsumedFromCache = await _cacheService.AtomicVerifyAndDeleteAsync(cacheKey, request.Otp);
+
+            if (!otpConsumedFromCache)
             {
-                if (cachedOtp != request.Otp)
+                // OTP was not in cache (expired or never set) — fall back to DB verification (slow path).
+                var user = await _authRepository.VerifyEmailOTPAsync(request.Email, request.Otp);
+                if (user == null)
                 {
-                    return BadRequest(new { message = "Invalid or expired OTP" });  
+                    _logger.LogWarning("Invalid or expired OTP attempt for email: {Email}", request.Email);
+                    return BadRequest(new { message = "Invalid or expired OTP" });
                 }
-                // OTP is valid in cache! 
-                // Proceed to mark user as verified in DB...
-                await _cacheService.RemoveAsync(cacheKey);
+
+                // OTP was valid in DB; continue with the verified user.
+                await CompleteEmailVerificationAsync(user);
+                return await BuildEmailVerificationResponseAsync(user);
             }
 
-            // If OTP is not in cache, check in DB (The slow path)
-            var user = await _authRepository.VerifyEmailOTPAsync(request.Email, request.Otp);
-            if (user == null)
+            // OTP was valid and atomically consumed from cache (fast path).
+            // We still need to confirm in the DB and mark the user as verified.
+            var verifiedUser = await _authRepository.VerifyEmailOTPAsync(request.Email, request.Otp);
+            if (verifiedUser == null)
             {
+                // Extremely rare: cache had it but DB didn't (race during OTP resend).
                 return BadRequest(new { message = "Invalid or expired OTP" });
             }
 
-            // Invalidate user profile cache
-            await _cacheService.RemoveAsync($"user_profile_{user.Id}");
-
-            // Generate tokens
-            var accessToken = _jwtTokenService.GenerateAccessToken(user);
-            var refreshTokenValue = _jwtTokenService.GenerateRefreshToken();
-            
-            var refreshToken = new RefreshToken
-            {
-                UserId = user.Id,
-                Token = refreshTokenValue,
-                ExpiresAt = DateTime.UtcNow.AddDays(7)
-            };
-            
-            await _authRepository.CreateRefreshTokenAsync(refreshToken);
-            SetRefreshTokenCookie(refreshTokenValue);
-
-            // Audit log
-            await _authRepository.LogAuditEventAsync(new AuditLog
-            {
-                UserId = user.Id,
-                Action = "EMAIL_VERIFIED",
-                IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
-                UserAgent = Request.Headers["User-Agent"].ToString(),
-                Success = true
-            });
-
-            return Ok(new
-            {
-                message = "Email verified successfully! You are now logged in.",
-                accessToken,
-                refreshToken = refreshTokenValue,
-                user = new { user.Id, user.Email, user.FirstName, user.LastName, user.Role }
-            });
+            await CompleteEmailVerificationAsync(verifiedUser);
+            return await BuildEmailVerificationResponseAsync(verifiedUser);
         }
         catch (Exception ex)
         {
@@ -208,7 +194,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Resend verification OTP if expired or not received
+    /// Resend verification OTP — uses atomic increment rate limiting (Task 1)
     /// </summary>
     [HttpPost("resend-otp")]
     public async Task<IActionResult> ResendOtp([FromBody] ResendOtpRequest request)
@@ -221,28 +207,29 @@ public class AuthController : ControllerBase
                 return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
             }
 
+            // ─── Task 1: Atomic Rate Limiting ──────────────────────────────────────
+            // Check rate limit BEFORE touching the database to avoid unnecessary DB load.
+            var rateLimitKey = $"resend_otp_rate:{request.Email}";
+            var requestCount = await _cacheService.IncrementAsync(rateLimitKey, RateLimitWindow);
+
+            if (requestCount > MaxResendOtpRequests)
+            {
+                _logger.LogWarning("ResendOtp rate limit exceeded for email: {Email} (count: {Count})", request.Email, requestCount);
+                return StatusCode(429, new { message = $"Too many OTP requests. Please wait {(int)RateLimitWindow.TotalMinutes} minutes before trying again." });
+            }
+            // ──────────────────────────────────────────────────────────────────────
+
             var user = await _authRepository.GetUserByEmailAsync(request.Email);
             
-            // Industry standard: Don't reveal if user exists or not if it's a security concern, 
-            // but for "resend" usually the user is already interacting with their account.
+            // Industry standard: Don't reveal if user exists or not
             if (user == null)
             {
-                // To prevent enumeration, we can return OK but mention "If the email is valid..."
                 return Ok(new { message = "If the account exists and is not verified, a new OTP has been sent." });
             }
 
             if (user.IsEmailVerified)
             {
                 return BadRequest(new { message = "Email is already verified." });
-            }
-
-            // Industry standard: Cooldown/Rate limiting
-            // Check if the last OTP was sent too recently (using expiry as a proxy for 'sent at')
-            // If expiry is 15 mins from now, and current expiry is > 14 mins from now, it was sent < 1 min ago.
-            if (user.EmailVerificationExpires.HasValue && 
-                user.EmailVerificationExpires.Value > DateTime.UtcNow.AddMinutes(14))
-            {
-                return StatusCode(429, new { message = "Please wait before requesting another OTP." });
             }
 
             // Generate new OTP
@@ -283,7 +270,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Login and get access token
+    /// Login — uses atomic increment rate limiting to block after 5 failed attempts (Task 1)
     /// </summary>
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
@@ -297,10 +284,25 @@ public class AuthController : ControllerBase
                 return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
             }
 
+            // ─── Task 1: Atomic Rate Limiting — Checked BEFORE hitting the database ──
+            // This is the key advantage: we block attackers before they can hammer the DB.
+            var rateLimitKey = $"login_fail:{request.Email}";
+            var currentFailCount = await _cacheService.GetAsync<long?>(rateLimitKey) ?? 0;
+
+            if (currentFailCount >= MaxLoginFailures)
+            {
+                _logger.LogWarning("Login blocked by Redis rate limit for email: {Email} (failures: {Count})", request.Email, currentFailCount);
+                return StatusCode(429, new { message = $"Account temporarily locked due to too many failed attempts. Please try again in {(int)RateLimitWindow.TotalMinutes} minutes." });
+            }
+            // ──────────────────────────────────────────────────────────────────────────
+
             // Get user by email
             var user = await _authRepository.GetUserByEmailAsync(request.Email);
             if (user == null)
             {
+                // Increment the failure counter even for non-existent users to prevent user enumeration timing attacks.
+                await _cacheService.IncrementAsync(rateLimitKey, RateLimitWindow);
+
                 await _authRepository.LogAuditEventAsync(new AuditLog
                 {
                     Action = "LOGIN_FAILED",
@@ -312,7 +314,7 @@ public class AuthController : ControllerBase
                 return Unauthorized(new { message = "Invalid email or password" });
             }
 
-            // Check if account is locked
+            // Check if account is locked (DB-level lockout as a second layer of defence)
             if (user.IsLockedOut)
             {
                 await _authRepository.LogAuditEventAsync(new AuditLog
@@ -330,6 +332,10 @@ public class AuthController : ControllerBase
             // Verify password
             if (!_passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
             {
+                // ─── Task 1: Increment failure counter on wrong password ──────────────
+                var failCount = await _cacheService.IncrementAsync(rateLimitKey, RateLimitWindow);
+                var remaining = MaxLoginFailures - (int)failCount;
+
                 await _authRepository.RecordFailedLoginAsync(request.Email);
                 await _authRepository.LogAuditEventAsync(new AuditLog
                 {
@@ -337,10 +343,17 @@ public class AuthController : ControllerBase
                     Action = "LOGIN_FAILED",
                     IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
                     UserAgent = Request.Headers["User-Agent"].ToString(),
-                    Details = "Invalid password",
+                    Details = $"Invalid password. Redis failure count: {failCount}/{MaxLoginFailures}",
                     Success = false
                 });
-                return Unauthorized(new { message = "Invalid email or password" });
+
+                if (remaining <= 0)
+                {
+                    _logger.LogWarning("Account locked by Redis rate limit for email: {Email}", request.Email);
+                    return StatusCode(429, new { message = $"Account temporarily locked due to too many failed attempts. Please try again in {(int)RateLimitWindow.TotalMinutes} minutes." });
+                }
+
+                return Unauthorized(new { message = $"Invalid email or password. {remaining} attempt(s) remaining before lockout." });
             }
 
             // Check if email is verified
@@ -375,7 +388,13 @@ public class AuthController : ControllerBase
                 });
             }
 
-            // Reset failed login attempts on successful login
+            // ─── Task 1: Clear rate limit key on successful login ─────────────────
+            // This is important: once the user successfully logs in, we reset the counter
+            // so they don't get locked out from their next session.
+            await _cacheService.RemoveAsync(rateLimitKey);
+            // ──────────────────────────────────────────────────────────────────────
+
+            // Reset failed login attempts on successful login (DB-level)
             await _authRepository.ResetFailedLoginAttemptsAsync(user.Id);
 
             // Generate tokens
@@ -475,7 +494,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Request password reset OTP
+    /// Request password reset OTP — uses atomic increment rate limiting (Task 1)
     /// </summary>
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
@@ -486,6 +505,18 @@ public class AuthController : ControllerBase
             {
                 return BadRequest(new { message = "Email is required" });
             }
+
+            // ─── Task 1: Atomic Rate Limiting (before DB lookup to prevent enumeration) ─
+            var rateLimitKey = $"forgot_pwd_rate:{request.Email}";
+            var requestCount = await _cacheService.IncrementAsync(rateLimitKey, RateLimitWindow);
+
+            if (requestCount > MaxForgotPasswordReqs)
+            {
+                _logger.LogWarning("ForgotPassword rate limit exceeded for email: {Email} (count: {Count})", request.Email, requestCount);
+                // Use the same generic message to avoid revealing if email exists
+                return Ok(new { message = "If the email exists, a password reset OTP has been sent" });
+            }
+            // ──────────────────────────────────────────────────────────────────────
 
             var user = await _authRepository.GetUserByEmailAsync(request.Email);
             if (user == null)
@@ -519,7 +550,7 @@ public class AuthController : ControllerBase
                 Success = true
             });
 
-            _logger.LogInformation("Password reset OTP for {Email}: {Otp}", user.Email, otp);
+            _logger.LogInformation("Password reset OTP requested for: {Email}", user.Email);
             
             // Send Email
             await _emailService.SendEmailAsync(
@@ -538,38 +569,37 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Reset password using OTP
+    /// Reset password using OTP — uses Lua atomic verify-and-delete (Task 2)
     /// </summary>
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] PasswordResetVerifyRequest request)
     {
         try
         {
-            // Check cache first
-            var cacheKey = $"otp_pwd_reset_{request.Email}";
-            var cachedOtp = await _cacheService.GetAsync<string>(cacheKey);
-            if (cachedOtp != null)
-            {
-                if (cachedOtp != request.Otp)
-                {
-                    return BadRequest(new { message = "Invalid or expired OTP" });  
-                }
-                // OTP is valid in cache! 
-                // Proceed to mark user as verified in DB...
-                await _cacheService.RemoveAsync(cacheKey);
-            }
-
-            // If OTP is not in cache, check in DB (The slow path)
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Otp) || string.IsNullOrWhiteSpace(request.NewPassword))
             {
                 return BadRequest(new { message = "Email, OTP and new password are required" });
             }
 
-            var isValid = await _authRepository.VerifyPasswordResetOTPAsync(request.Email, request.Otp);
-            if (!isValid)
+            var cacheKey = $"otp_pwd_reset_{request.Email}";
+
+            // ─── Task 2: Lua Atomic Verify & Delete ────────────────────────────────
+            // Atomically validates the OTP and deletes it in one Redis round-trip.
+            // If two concurrent requests arrive at the exact same time, only ONE will
+            // receive `true` — the other will get `false` because the key was already deleted.
+            var otpConsumedFromCache = await _cacheService.AtomicVerifyAndDeleteAsync(cacheKey, request.Otp);
+
+            if (!otpConsumedFromCache)
             {
-                return BadRequest(new { message = "Invalid or expired OTP" });
+                // Cache miss: OTP may have expired or was already used. Fall back to DB.
+                var isValidFromDb = await _authRepository.VerifyPasswordResetOTPAsync(request.Email, request.Otp);
+                if (!isValidFromDb)
+                {
+                    _logger.LogWarning("Invalid or expired password reset OTP for email: {Email}", request.Email);
+                    return BadRequest(new { message = "Invalid or expired OTP" });
+                }
             }
+            // ──────────────────────────────────────────────────────────────────────
 
             var user = await _authRepository.GetUserByEmailAsync(request.Email);
             if (user == null) return NotFound(new { message = "User not found" });
@@ -602,7 +632,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Logout and revoke refresh token
+    /// Logout and revoke refresh token + blacklist access token
     /// </summary>
     [Authorize]
     [HttpPost("logout")]
@@ -634,7 +664,7 @@ public class AuthController : ControllerBase
 
             _logger.LogInformation("User logged out successfully");
 
-            // Get the token from the header to blacklist it
+            // Blacklist the current access token so it cannot be reused until expiry
             var token = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
             if (!string.IsNullOrEmpty(token))
             {
@@ -707,6 +737,47 @@ public class AuthController : ControllerBase
             _logger.LogError(ex, "Error getting current user");
             return StatusCode(500, new { message = "An error occurred" });
         }
+    }
+
+    // ─── Private Helpers ─────────────────────────────────────────────────────
+
+    private async Task CompleteEmailVerificationAsync(User user)
+    {
+        // Invalidate user profile cache now that their verification state changed
+        await _cacheService.RemoveAsync($"user_profile_{user.Id}");
+    }
+
+    private async Task<IActionResult> BuildEmailVerificationResponseAsync(User user)
+    {
+        var accessToken = _jwtTokenService.GenerateAccessToken(user);
+        var refreshTokenValue = _jwtTokenService.GenerateRefreshToken();
+        
+        var refreshToken = new RefreshToken
+        {
+            UserId = user.Id,
+            Token = refreshTokenValue,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        };
+        
+        await _authRepository.CreateRefreshTokenAsync(refreshToken);
+        SetRefreshTokenCookie(refreshTokenValue);
+
+        await _authRepository.LogAuditEventAsync(new AuditLog
+        {
+            UserId = user.Id,
+            Action = "EMAIL_VERIFIED",
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            UserAgent = Request.Headers["User-Agent"].ToString(),
+            Success = true
+        });
+
+        return Ok(new
+        {
+            message = "Email verified successfully! You are now logged in.",
+            accessToken,
+            refreshToken = refreshTokenValue,
+            user = new { user.Id, user.Email, user.FirstName, user.LastName, user.Role }
+        });
     }
 
     private void SetRefreshTokenCookie(string refreshToken)

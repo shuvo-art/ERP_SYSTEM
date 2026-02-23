@@ -34,9 +34,19 @@ public static class ServiceCollectionExtensions
         });
             
         services.AddScoped<ICacheService, RedisCacheService>();
+
+        // --- Task 3: Register Pub/Sub Publisher ---
+        // Singleton because IConnectionMultiplexer is singleton and ISubscriber is thread-safe.
+        services.AddSingleton<IMessagePublisher, RedisMessageBus>();
+
+        // --- Task 3: Register Pub/Sub Subscriber (Background Service) ---
+        // This starts a long-lived background worker that listens for "user-updates" events
+        // and invalidates the local cache on this instance, enabling distributed invalidation.
+        services.AddHostedService<UserCacheInvalidationService>();
         
         return services;
     }
+
     public static IServiceCollection AddRedisRateLimiting(this IServiceCollection services)
     {
         // Add basic rate limiting services

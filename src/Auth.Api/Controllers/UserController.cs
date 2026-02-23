@@ -6,6 +6,7 @@ using Auth.Core.Enums;
 using Auth.Core.DTOs;
 using System.Security.Claims;
 using Shared.Kernel.Interfaces;
+using Shared.Kernel.Services;
 
 namespace Auth.Api.Controllers;
 
@@ -18,17 +19,20 @@ public class UserController : ControllerBase
     private readonly IPasswordHasher _passwordHasher;
     private readonly ILogger<UserController> _logger;
     private readonly ICacheService _cacheService;
+    private readonly IMessagePublisher _messagePublisher;
 
     public UserController(
         IAuthRepository authRepository,
         IPasswordHasher passwordHasher,
         ILogger<UserController> logger,
-        ICacheService cacheService)
+        ICacheService cacheService,
+        IMessagePublisher messagePublisher)
     {
         _authRepository = authRepository;
         _passwordHasher = passwordHasher;
         _logger = logger;
         _cacheService = cacheService;
+        _messagePublisher = messagePublisher;
     }
 
     /// <summary>
@@ -73,7 +77,7 @@ public class UserController : ControllerBase
     }
 
     /// <summary>
-    /// Update current user profile
+    /// Update current user profile — publishes Pub/Sub event for distributed cache invalidation (Task 3)
     /// </summary>
     [HttpPut("profile")]
     public async Task<IActionResult> UpdateProfile([FromBody] User updateRequest)
@@ -91,15 +95,22 @@ public class UserController : ControllerBase
         user.Phone = updateRequest.Phone ?? user.Phone;
         user.Country = updateRequest.Country ?? user.Country;
         user.Language = updateRequest.Language ?? user.Language;
-        // ProfileImage would normally be handled via separate upload endpoint, but allowing URL here for parity
         user.ProfileImage = updateRequest.ProfileImage ?? user.ProfileImage;
 
         var success = await _authRepository.UpdateUserAsync(user);
         if (!success) return StatusCode(500, new { message = "Failed to update profile" });
 
-        // Clear cache for this user
-        var cacheKey = $"user_profile_{userId}";
-        await _cacheService.RemoveAsync(cacheKey);
+        // ─── Task 3: Redis Pub/Sub — Distributed Cache Invalidation ───────────
+        // 1. Directly remove from THIS instance's cache.
+        await _cacheService.RemoveAsync($"user_profile_{userId}");
+
+        // 2. Publish a message to the "user-updates" channel.
+        //    ALL other running instances of the Auth service are subscribed to this channel
+        //    via UserCacheInvalidationService and will also clear their copy of the cache.
+        await _messagePublisher.PublishAsync(UserCacheInvalidationService.Channel, userId.ToString());
+        // ──────────────────────────────────────────────────────────────────────
+
+        _logger.LogInformation("Profile updated and cache invalidation published for UserId: {UserId}", userId);
 
         return Ok(new { message = "Profile updated successfully" });
     }
@@ -141,7 +152,7 @@ public class UserController : ControllerBase
         return Ok(new { message = "FCM token updated successfully" });
     }
 
-    // Admin Routes
+    // ─── Admin Routes ─────────────────────────────────────────────────────────
 
     /// <summary>
     /// Get all users (Admin only)
@@ -168,13 +179,14 @@ public class UserController : ControllerBase
     }
 
     /// <summary>
-    /// Update user role (Admin only)
+    /// Update user role (Admin only) — publishes Pub/Sub event for distributed cache invalidation (Task 3)
     /// </summary>
     [HttpPut("{userId}/role")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateRole(int userId, [FromBody] UpdateRoleRequest request)
     {
-        if (request.Role != "User" && request.Role != "Admin") return BadRequest(new { message = "Invalid role" });
+        if (request.Role != "User" && request.Role != "Admin")
+            return BadRequest(new { message = "Invalid role" });
         
         var success = await _authRepository.UpdateUserRoleAsync(userId, request.Role);
         if (!success) 
@@ -183,14 +195,21 @@ public class UserController : ControllerBase
             return NotFound(new { message = "User not found" });
         }
 
-        // Invalidate Cache
+        // ─── Task 3: Redis Pub/Sub — Distributed Cache Invalidation ───────────
+        // Role changes are security-critical — stale cache could grant wrong permissions.
+        // Publishing to "user-updates" ensures ALL instances immediately invalidate
+        // this user's cached profile, forcing a fresh DB read on next request.
         await _cacheService.RemoveAsync($"user_profile_{userId}");
+        await _messagePublisher.PublishAsync(UserCacheInvalidationService.Channel, userId.ToString());
+        // ──────────────────────────────────────────────────────────────────────
+
+        _logger.LogInformation("Role updated to '{Role}' and cache invalidation published for UserId: {UserId}", request.Role, userId);
 
         return Ok(new { message = "User role updated successfully" });
     }
 
     /// <summary>
-    /// Delete user (Admin only)
+    /// Delete user (Admin only) — publishes Pub/Sub event for distributed cache invalidation (Task 3)
     /// </summary>
     [HttpDelete("{userId}")]
     [Authorize(Roles = "Admin")]
@@ -202,10 +221,15 @@ public class UserController : ControllerBase
         var success = await _authRepository.DeleteUserAsync(userId);
         if (!success) return NotFound(new { message = "User not found" });
 
-        // Invalidate Cache
+        // ─── Task 3: Redis Pub/Sub — Distributed Cache Invalidation ───────────
+        // Even though the user is deleted, we should remove their stale cache entry
+        // from all instances to prevent serving 404-worthy data from cache.
         await _cacheService.RemoveAsync($"user_profile_{userId}");
+        await _messagePublisher.PublishAsync(UserCacheInvalidationService.Channel, userId.ToString());
+        // ──────────────────────────────────────────────────────────────────────
+
+        _logger.LogInformation("User deleted and cache invalidation published for UserId: {UserId}", userId);
 
         return Ok(new { message = "User deleted successfully" });
     }
 }
-
