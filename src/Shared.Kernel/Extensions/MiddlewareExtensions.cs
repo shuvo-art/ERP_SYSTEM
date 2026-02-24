@@ -12,4 +12,12 @@ public static class MiddlewareExtensions
     {
         return builder.UseMiddleware<Shared.Kernel.Middleware.TokenBlacklistMiddleware>();
     }
+    public static IApplicationBuilder UseCorrelationId(this IApplicationBuilder builder)
+    {
+        return builder.UseMiddleware<Shared.Kernel.Middleware.CorrelationIdMiddleware>();
+    }
+    public static IApplicationBuilder UseSlidingWindowRateLimit(this IApplicationBuilder builder)
+    {
+        return builder.UseMiddleware<Shared.Kernel.Middleware.SlidingWindowRateLimitMiddleware>();
+    }
 }

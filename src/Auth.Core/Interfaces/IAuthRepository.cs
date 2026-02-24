@@ -22,6 +22,25 @@ public interface IAuthRepository
     Task<RefreshToken?> ValidateRefreshTokenAsync(string token);
     Task RevokeRefreshTokenAsync(string token);
     Task RevokeAllUserTokensAsync(int userId);
+
+    // ─── Refresh Token Rotation ──────────────────────────────────────────────
+    /// <summary>
+    /// Gets a refresh token entity by its raw token value, including IsRevoked/Family info.
+    /// Unlike ValidateRefreshTokenAsync, this returns even revoked tokens (for breach detection).
+    /// </summary>
+    Task<RefreshToken?> GetRefreshTokenByTokenAsync(string token);
+
+    /// <summary>
+    /// Revokes ALL tokens in the same TokenFamily.
+    /// Called on breach detection (reuse of a revoked token).
+    /// </summary>
+    Task RevokeTokenFamilyAsync(string tokenFamily);
+
+    /// <summary>
+    /// Atomically: revoke the old token (set IsRevoked, RevokedAt, ReplacedByToken)
+    /// and create the new rotated token. Returns the new token entity.
+    /// </summary>
+    Task<RefreshToken> ReplaceRefreshTokenAsync(string oldToken, RefreshToken newToken);
     
     // Password Reset
     Task<PasswordResetToken> CreatePasswordResetTokenAsync(PasswordResetToken token);

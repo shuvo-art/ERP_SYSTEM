@@ -408,7 +408,8 @@ public class AuthController : ControllerBase
                 UserId = user.Id,
                 Token = refreshToken,
                 ExpiresAt = DateTime.UtcNow.AddDays(refreshTokenExpirationDays),
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                TokenFamily = Guid.NewGuid().ToString("N") // Start a new token family
             };
 
             await _authRepository.CreateRefreshTokenAsync(refreshTokenEntity);
@@ -464,31 +465,74 @@ public class AuthController : ControllerBase
                 return BadRequest(new { message = "Refresh token is required" });
             }
 
-            var storedToken = await _authRepository.ValidateRefreshTokenAsync(request.RefreshToken);
+            // ─── Task 4: Token Refresh Rotation & Breach Detection ─────────────────
+            // 1. Get the token, EVEN IF it is already revoked (this is crucial for breach detection).
+            var storedToken = await _authRepository.GetRefreshTokenByTokenAsync(request.RefreshToken);
+            
             if (storedToken == null)
             {
-                return Unauthorized(new { message = "Invalid or expired refresh token" });
+                return Unauthorized(new { message = "Invalid refresh token" });
             }
 
-            var user = await _authRepository.GetUserByIdAsync(storedToken.UserId);
-            if (user == null)
+            // 2. Breach Detection Rule:
+            // If the token is validly formatted but ALREADY REVOKED, someone is trying to reuse an old token.
+            // This happens when an attacker steals a token and tries to use it after the legitimate user already rotated it.
+            if (storedToken.IsRevoked)
             {
-                return Unauthorized(new { message = "User not found" });
+                _logger.LogWarning(
+                    "🚨 BREACH DETECTED: Reuse of revoked refresh token! TokenFamily: {TokenFamily}, UserId: {UserId}",
+                    storedToken.TokenFamily, storedToken.UserId);
+
+                // Nuclear option: revoke ALL tokens in this family because the chain is compromised.
+                await _authRepository.RevokeTokenFamilyAsync(storedToken.TokenFamily);
+                
+                // Force the user to log in again.
+                return Unauthorized(new { message = "Invalid token. Session terminated for security reasons." });
             }
 
-            var newAccessToken = _jwtTokenService.GenerateAccessToken(user);
+            // 3. Regular expiration check
+            if (storedToken.ExpiresAt <= DateTime.UtcNow)
+            {
+                return Unauthorized(new { message = "Refresh token has expired" });
+            }
 
-            _logger.LogInformation("Token refreshed for user: {Email}", user.Email);
+            // 4. Validate User
+            var user = await _authRepository.GetUserByIdAsync(storedToken.UserId);
+            if (user == null || !user.IsActive)
+            {
+                return Unauthorized(new { message = "User not found or inactive" });
+            }
+
+            // 5. Generate New Tokens
+            var newAccessToken = _jwtTokenService.GenerateAccessToken(user);
+            var newRefreshTokenValue = _jwtTokenService.GenerateRefreshToken();
+
+            var refreshTokenExpirationDays = int.Parse(_configuration["JwtSettings:RefreshTokenExpirationDays"] ?? "7");
+            var newRefreshTokenEntity = new RefreshToken
+            {
+                UserId = user.Id,
+                Token = newRefreshTokenValue,
+                ExpiresAt = DateTime.UtcNow.AddDays(refreshTokenExpirationDays),
+                CreatedAt = DateTime.UtcNow,
+                TokenFamily = storedToken.TokenFamily // Continue the same token chain/family
+            };
+
+            // 6. Atomically replace the token (Revoke old + Create new)
+            await _authRepository.ReplaceRefreshTokenAsync(request.RefreshToken, newRefreshTokenEntity);
+
+            SetRefreshTokenCookie(newRefreshTokenValue);
+
+            _logger.LogInformation("Token securely rotated for user: {Email}", user.Email);
 
             return Ok(new
             {
                 accessToken = newAccessToken,
-                refreshToken = request.RefreshToken
+                refreshToken = newRefreshTokenValue
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during token refresh");
+            _logger.LogError(ex, "Error during token refresh rotation");
             return StatusCode(500, new { message = "An error occurred during token refresh" });
         }
     }
@@ -756,7 +800,8 @@ public class AuthController : ControllerBase
         {
             UserId = user.Id,
             Token = refreshTokenValue,
-            ExpiresAt = DateTime.UtcNow.AddDays(7)
+            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            TokenFamily = Guid.NewGuid().ToString("N") // Start a new token family
         };
         
         await _authRepository.CreateRefreshTokenAsync(refreshToken);

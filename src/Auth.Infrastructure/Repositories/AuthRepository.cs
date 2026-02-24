@@ -142,6 +142,85 @@ public class AuthRepository : IAuthRepository
         await connection.ExecuteAsync("sp_RevokeAllUserTokens", new { UserId = userId }, commandType: CommandType.StoredProcedure);
     }
 
+    // ─── Refresh Token Rotation Methods ──────────────────────────────────────
+
+    public async Task<RefreshToken?> GetRefreshTokenByTokenAsync(string token)
+    {
+        using var connection = new SqlConnection(_connectionString);
+        // Returns the token even if revoked — needed for breach detection
+        return await connection.QuerySingleOrDefaultAsync<RefreshToken>(
+            @"SELECT Id, UserId, Token, ExpiresAt, CreatedAt, RevokedAt, IsRevoked, 
+                     ReplacedByToken, TokenFamily
+              FROM RefreshTokens 
+              WHERE Token = @Token",
+            new { Token = token }
+        );
+    }
+
+    public async Task RevokeTokenFamilyAsync(string tokenFamily)
+    {
+        using var connection = new SqlConnection(_connectionString);
+        // Revoke every token in this family — nuclear option triggered by breach
+        await connection.ExecuteAsync(
+            @"UPDATE RefreshTokens 
+              SET IsRevoked = 1, RevokedAt = @RevokedAt 
+              WHERE TokenFamily = @TokenFamily AND IsRevoked = 0",
+            new { TokenFamily = tokenFamily, RevokedAt = DateTime.UtcNow }
+        );
+    }
+
+    public async Task<RefreshToken> ReplaceRefreshTokenAsync(string oldToken, RefreshToken newToken)
+    {
+        using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+        
+        using var transaction = connection.BeginTransaction();
+        try
+        {
+            // Step 1: Revoke the old token and point it to the new one
+            await connection.ExecuteAsync(
+                @"UPDATE RefreshTokens 
+                  SET IsRevoked = 1, 
+                      RevokedAt = @RevokedAt, 
+                      ReplacedByToken = @ReplacedByToken 
+                  WHERE Token = @OldToken AND IsRevoked = 0",
+                new 
+                { 
+                    OldToken = oldToken, 
+                    RevokedAt = DateTime.UtcNow, 
+                    ReplacedByToken = newToken.Token 
+                },
+                transaction
+            );
+
+            // Step 2: Insert the new token
+            var newId = await connection.QuerySingleAsync<int>(
+                @"INSERT INTO RefreshTokens (UserId, Token, ExpiresAt, CreatedAt, IsRevoked, TokenFamily)
+                  OUTPUT INSERTED.Id
+                  VALUES (@UserId, @Token, @ExpiresAt, @CreatedAt, 0, @TokenFamily)",
+                new 
+                { 
+                    newToken.UserId, 
+                    newToken.Token, 
+                    newToken.ExpiresAt, 
+                    newToken.CreatedAt, 
+                    newToken.TokenFamily 
+                },
+                transaction
+            );
+
+            transaction.Commit();
+
+            newToken.Id = newId;
+            return newToken;
+        }
+        catch
+        {
+            transaction.Rollback();
+            throw;
+        }
+    }
+
     public async Task<PasswordResetToken> CreatePasswordResetTokenAsync(PasswordResetToken token)
     {
         using var connection = new SqlConnection(_connectionString);

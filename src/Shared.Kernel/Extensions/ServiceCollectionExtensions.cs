@@ -33,7 +33,7 @@ public static class ServiceCollectionExtensions
             options.InstanceName = prefix;
         });
             
-        services.AddScoped<ICacheService, RedisCacheService>();
+        services.AddScoped<ICacheService, ResilientRedisCacheService>();
 
         // --- Task 3: Register Pub/Sub Publisher ---
         // Singleton because IConnectionMultiplexer is singleton and ISubscriber is thread-safe.

@@ -12,8 +12,21 @@ using Shared.Kernel.Extensions;
 using Auth.Core.Settings;
 using Shared.Kernel.Interfaces;
 using Shared.Kernel.Services;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ─── Task 2: Configure Serilog Structured Logging ───────────────────────────
+builder.Host.UseSerilog((context, loggerConfiguration) =>
+{
+    loggerConfiguration
+        .ReadFrom.Configuration(context.Configuration)
+        .Enrich.FromLogContext()
+        .Enrich.WithMachineName()
+        .Enrich.WithEnvironmentName()
+        .WriteTo.Console(new Serilog.Formatting.Json.JsonFormatter());
+});
+// ────────────────────────────────────────────────────────────────────────────
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -138,7 +151,17 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 
+// ─── Task 2: Structured Logging & Correlation IDs ───────────────────────────
+// Assign Correlation ID early so all other middleware/controllers log it correctly.
+app.UseCorrelationId();
+// ────────────────────────────────────────────────────────────────────────────
+
 app.UseCors("AllowAll");
+
+// ─── Task 1: Distributed Rate Limiting (Sensitive Endpoints) ────────────────
+app.UseSlidingWindowRateLimit();
+// ────────────────────────────────────────────────────────────────────────────
+
 app.UseIpRateLimiting();
 app.UseSecurityHeaders();
 app.UseTokenBlacklist();
