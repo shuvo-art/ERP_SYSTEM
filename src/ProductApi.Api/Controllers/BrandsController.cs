@@ -33,7 +33,7 @@ public class BrandsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching brands");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -57,7 +57,7 @@ public class BrandsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating brand");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -91,7 +91,7 @@ public class BrandsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating brand");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -110,7 +110,7 @@ public class BrandsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting brand");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 }

@@ -31,7 +31,7 @@ public class SubCategoriesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching subcategories");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -54,7 +54,7 @@ public class SubCategoriesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating subcategory");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -78,7 +78,7 @@ public class SubCategoriesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating subcategory");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -119,7 +119,7 @@ public class SubCategoriesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error patching subcategory");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -135,7 +135,7 @@ public class SubCategoriesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting subcategory");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 }
