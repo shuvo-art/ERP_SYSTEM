@@ -30,7 +30,7 @@ public class UnitsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching units");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -48,7 +48,7 @@ public class UnitsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating unit");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -69,7 +69,7 @@ public class UnitsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating unit");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -85,7 +85,7 @@ public class UnitsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting unit");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 }

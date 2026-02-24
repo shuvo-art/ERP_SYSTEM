@@ -33,7 +33,7 @@ public class CategoriesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching categories");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -57,7 +57,7 @@ public class CategoriesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating category");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -90,7 +90,7 @@ public class CategoriesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating category");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -109,7 +109,7 @@ public class CategoriesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting category");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 }

@@ -18,6 +18,7 @@ builder.Services.AddEndpointsApiExplorer();
 
 // Add FluentValidation
 builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<ProductApi.Core.Validators.CountryRequestValidator>();
 
 // Configure Swagger
 builder.Services.AddSwaggerGen(options =>

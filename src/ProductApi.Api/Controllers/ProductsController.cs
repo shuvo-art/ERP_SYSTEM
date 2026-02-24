@@ -145,7 +145,7 @@ public class ProductsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating product");
-            return StatusCode(500, new { message = "Error creating product", details = ex.Message });
+            return StatusCode(500, new { message = "Error creating product." });
         }
     }
 
@@ -236,7 +236,7 @@ public class ProductsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating product {Id}", id);
-            return StatusCode(500, new { message = "Error updating product", details = ex.Message });
+            return StatusCode(500, new { message = "Error updating product." });
         }
     }
 
@@ -365,7 +365,7 @@ public class ProductsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting product");
-            return StatusCode(500, new { message = ex.Message });
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
