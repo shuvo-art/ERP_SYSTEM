@@ -55,27 +55,45 @@ public class PartnersController : ControllerBase
                 Name = request.Name,
                 Slug = GenerateSlug(request.Name),
                 ShortDescription = request.ShortDescription,
-                LongDescriptionTitle = request.LongDescriptionTitle,
-                LongDescription = request.LongDescription
+                DetailsDescriptionTitle = request.DetailsDescriptionTitle,
+                DetailsDescription = request.DetailsDescription,
+                CompanyName = request.CompanyName,
+                BrandName = request.BrandName,
+                EstablishedIn = request.EstablishedIn,
+                Website = request.Website
             };
 
-            if (!string.IsNullOrEmpty(request.CompanyProfileJson))
-                partner.CompanyProfile = JsonSerializer.Deserialize<Dictionary<string, string>>(request.CompanyProfileJson, _jsonOptions) ?? new();
-            
             if (!string.IsNullOrEmpty(request.ProductSegmentsJson))
                 partner.ProductSegments = JsonSerializer.Deserialize<List<ProductSegment>>(request.ProductSegmentsJson, _jsonOptions) ?? new();
+            
+            if (!string.IsNullOrEmpty(request.DocumentsJson))
+                partner.Documents = JsonSerializer.Deserialize<List<PartnerDocument>>(request.DocumentsJson, _jsonOptions) ?? new();
 
             // Handle Files
-            if (request.LogoFile != null) partner.LogoUrl = await _cloudinary.UploadImageAsync(request.LogoFile, "partners/logos");
-            if (request.BuildingImageFile != null) partner.BuildingImageUrl = await _cloudinary.UploadImageAsync(request.BuildingImageFile, "partners/buildings");
-            if (request.BrochureFile != null) partner.CompanyProfile["brochure_url"] = await _cloudinary.UploadFileAsync(request.BrochureFile, "partners/brochures");
+            if (request.LogoFile != null) 
+                partner.LogoUrl = await _cloudinary.UploadImageAsync(request.LogoFile, "partners/logos");
+            
+            if (request.BuildingImageFile != null) 
+                partner.BuildingImageUrl = await _cloudinary.UploadImageAsync(request.BuildingImageFile, "partners/buildings");
+            
+            if (request.VideoFile != null)
+                partner.VideoUrl = await _cloudinary.UploadFileAsync(request.VideoFile, "partners/videos");
 
-            // Handle Product Segment Images (if provided separately)
+            // Handle Product Segment Images
             if (request.ProductSegmentFiles != null && request.ProductSegmentFiles.Any())
             {
                 for (int i = 0; i < Math.Min(request.ProductSegmentFiles.Count, partner.ProductSegments.Count); i++)
                 {
                     partner.ProductSegments[i].ImageUrl = await _cloudinary.UploadImageAsync(request.ProductSegmentFiles[i], "partners/segments");
+                }
+            }
+
+            // Handle Document Files
+            if (request.DocumentFiles != null && request.DocumentFiles.Any())
+            {
+                for (int i = 0; i < Math.Min(request.DocumentFiles.Count, partner.Documents.Count); i++)
+                {
+                    partner.Documents[i].DocumentUrl = await _cloudinary.UploadFileAsync(request.DocumentFiles[i], "partners/documents");
                 }
             }
 
@@ -100,62 +118,56 @@ public class PartnersController : ControllerBase
         existing.Name = request.Name;
         existing.Slug = GenerateSlug(request.Name);
         existing.ShortDescription = request.ShortDescription;
-        existing.LongDescriptionTitle = request.LongDescriptionTitle;
-        existing.LongDescription = request.LongDescription;
+        existing.DetailsDescriptionTitle = request.DetailsDescriptionTitle;
+        existing.DetailsDescription = request.DetailsDescription;
+        existing.CompanyName = request.CompanyName;
+        existing.BrandName = request.BrandName;
+        existing.EstablishedIn = request.EstablishedIn;
+        existing.Website = request.Website;
 
-        if (!string.IsNullOrEmpty(request.CompanyProfileJson))
-            existing.CompanyProfile = JsonSerializer.Deserialize<Dictionary<string, string>>(request.CompanyProfileJson, _jsonOptions) ?? new();
-            
         if (!string.IsNullOrEmpty(request.ProductSegmentsJson))
             existing.ProductSegments = JsonSerializer.Deserialize<List<ProductSegment>>(request.ProductSegmentsJson, _jsonOptions) ?? new();
-
-        if (request.LogoFile != null) 
-        {
-            await _cloudinary.DeleteFileAsync(existing.LogoUrl!);
-            existing.LogoUrl = await _cloudinary.UploadImageAsync(request.LogoFile, "partners/logos");
-        }
-        if (request.BuildingImageFile != null) 
-        {
-            await _cloudinary.DeleteFileAsync(existing.BuildingImageUrl!);
-            existing.BuildingImageUrl = await _cloudinary.UploadImageAsync(request.BuildingImageFile, "partners/buildings");
-        }
-        if (request.BrochureFile != null)
-        {
-            if (existing.CompanyProfile.TryGetValue("brochure_url", out var oldUrl)) await _cloudinary.DeleteFileAsync(oldUrl);
-            existing.CompanyProfile["brochure_url"] = await _cloudinary.UploadFileAsync(request.BrochureFile, "partners/brochures");
-        }
-
-        await _repository.UpdateAsync(existing);
-        return Ok(existing);
-    }
-
-    [HttpPatch("{id}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> Patch(int id, [FromForm] PartnerPatchRequest request)
-    {
-        var existing = await _repository.GetByIdAsync(id);
-        if (existing == null) return NotFound();
-
-        if (request.Name != null) { existing.Name = request.Name; existing.Slug = GenerateSlug(request.Name); }
-        if (request.ShortDescription != null) existing.ShortDescription = request.ShortDescription;
-        if (request.LongDescriptionTitle != null) existing.LongDescriptionTitle = request.LongDescriptionTitle;
-        if (request.LongDescription != null) existing.LongDescription = request.LongDescription;
-
-        if (!string.IsNullOrEmpty(request.CompanyProfileJson))
-            existing.CompanyProfile = JsonSerializer.Deserialize<Dictionary<string, string>>(request.CompanyProfileJson, _jsonOptions) ?? existing.CompanyProfile;
             
-        if (!string.IsNullOrEmpty(request.ProductSegmentsJson))
-            existing.ProductSegments = JsonSerializer.Deserialize<List<ProductSegment>>(request.ProductSegmentsJson, _jsonOptions) ?? existing.ProductSegments;
+        if (!string.IsNullOrEmpty(request.DocumentsJson))
+            existing.Documents = JsonSerializer.Deserialize<List<PartnerDocument>>(request.DocumentsJson, _jsonOptions) ?? new();
 
+        // Logo
         if (request.LogoFile != null) 
         {
-            await _cloudinary.DeleteFileAsync(existing.LogoUrl!);
+            if (!string.IsNullOrEmpty(existing.LogoUrl)) await _cloudinary.DeleteFileAsync(existing.LogoUrl);
             existing.LogoUrl = await _cloudinary.UploadImageAsync(request.LogoFile, "partners/logos");
         }
+
+        // Building Image
         if (request.BuildingImageFile != null) 
         {
-            await _cloudinary.DeleteFileAsync(existing.BuildingImageUrl!);
+            if (!string.IsNullOrEmpty(existing.BuildingImageUrl)) await _cloudinary.DeleteFileAsync(existing.BuildingImageUrl);
             existing.BuildingImageUrl = await _cloudinary.UploadImageAsync(request.BuildingImageFile, "partners/buildings");
+        }
+
+        // Video
+        if (request.VideoFile != null)
+        {
+            if (!string.IsNullOrEmpty(existing.VideoUrl)) await _cloudinary.DeleteFileAsync(existing.VideoUrl);
+            existing.VideoUrl = await _cloudinary.UploadFileAsync(request.VideoFile, "partners/videos");
+        }
+
+        // Handle Product Segment Images (Simplified: assumes matching order if provided)
+        if (request.ProductSegmentFiles != null && request.ProductSegmentFiles.Any())
+        {
+            for (int i = 0; i < Math.Min(request.ProductSegmentFiles.Count, existing.ProductSegments.Count); i++)
+            {
+                existing.ProductSegments[i].ImageUrl = await _cloudinary.UploadImageAsync(request.ProductSegmentFiles[i], "partners/segments");
+            }
+        }
+
+        // Handle Document Files
+        if (request.DocumentFiles != null && request.DocumentFiles.Any())
+        {
+            for (int i = 0; i < Math.Min(request.DocumentFiles.Count, existing.Documents.Count); i++)
+            {
+                existing.Documents[i].DocumentUrl = await _cloudinary.UploadFileAsync(request.DocumentFiles[i], "partners/documents");
+            }
         }
 
         await _repository.UpdateAsync(existing);
@@ -169,10 +181,19 @@ public class PartnersController : ControllerBase
         var existing = await _repository.GetByIdAsync(id);
         if (existing == null) return NotFound();
 
-        await _cloudinary.DeleteFileAsync(existing.LogoUrl!);
-        await _cloudinary.DeleteFileAsync(existing.BuildingImageUrl!);
-        if (existing.CompanyProfile.TryGetValue("brochure_url", out var brochureUrl)) await _cloudinary.DeleteFileAsync(brochureUrl);
-        foreach (var seg in existing.ProductSegments) await _cloudinary.DeleteFileAsync(seg.ImageUrl!);
+        if (!string.IsNullOrEmpty(existing.LogoUrl)) await _cloudinary.DeleteFileAsync(existing.LogoUrl);
+        if (!string.IsNullOrEmpty(existing.BuildingImageUrl)) await _cloudinary.DeleteFileAsync(existing.BuildingImageUrl);
+        if (!string.IsNullOrEmpty(existing.VideoUrl)) await _cloudinary.DeleteFileAsync(existing.VideoUrl);
+        
+        foreach (var seg in existing.ProductSegments) 
+        {
+            if (!string.IsNullOrEmpty(seg.ImageUrl)) await _cloudinary.DeleteFileAsync(seg.ImageUrl);
+        }
+
+        foreach (var doc in existing.Documents)
+        {
+            if (!string.IsNullOrEmpty(doc.DocumentUrl)) await _cloudinary.DeleteFileAsync(doc.DocumentUrl);
+        }
 
         await _repository.DeleteAsync(id);
         return NoContent();
